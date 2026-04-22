@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Get Fit. Live Longer.</title>
+
+  <!-- iOS PWA Settings -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Get Fit" />
+  <meta name="theme-color" content="#0A0A0A" />
+
+  <!-- Home Screen Icon -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%230A0A0A'/%3E%3Crect x='30' y='30' width='452' height='452' rx='90' fill='%23141414'/%3E%3Ctext x='256' y='200' font-family='Arial Black' font-size='130' font-weight='900' fill='%2300E87A' text-anchor='middle'%3EGF%3C/text%3E%3Ctext x='256' y='330' font-family='Arial' font-size='62' fill='%23444' text-anchor='middle'%3ELIVE%3C/text%3E%3Ctext x='256' y='400' font-family='Arial' font-size='62' fill='%2300E87A' text-anchor='middle'%3ELONGER%3C/text%3E%3C/svg%3E" />
+
+  <!-- Android PWA Manifest -->
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Get+Fit.+Live+Longer.%22%2C%22short_name%22%3A%22Get+Fit%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230A0A0A%22%2C%22theme_color%22%3A%22%230A0A0A%22%7D" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- React, Babel, Recharts via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #0A0A0A; overscroll-behavior: none; }
+    body { font-family: 'DM Sans', sans-serif; color: #fff; }
+    #root { height: 100%; }
+    input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #2A2A2A; outline: none; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #00E87A; cursor: pointer; border: 3px solid #0A0A0A; box-shadow: 0 0 0 2px #00E87A; }
+    input[type=number], input[type=text] { background: #1C1C1C; border: 1px solid #2A2A2A; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; padding: 12px 14px; width: 100%; outline: none; -moz-appearance: textfield; }
+    input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type=number]:focus, input[type=text]:focus { border-color: #00E87A; }
+    textarea { background: #1C1C1C; border: 1px solid #2A2A2A; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 12px 14px; width: 100%; outline: none; resize: none; }
+    textarea:focus { border-color: #00E87A; }
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } = Recharts;
+
+    // ── Constants ────────────────────────────────────────────
+    const A = "#00E87A", BG = "#0A0A0A", CARD = "#141414", C2 = "#1C1C1C";
+    const BDR = "#2A2A2A", MUT = "#666", SOFT = "#AAA", RED = "#FF5555";
+    const energyLabels = ["","Wiped","Tired","OK","Good","Great"];
+    const moodLabels   = ["","Rough","Meh","OK","Good","Great"];
+
+    // ── Storage (localStorage) ───────────────────────────────
+    const db = {
+      get: async k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+      set: async (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    };
+
+    // ── Helpers ──────────────────────────────────────────────
+    const localToday = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    };
+    const bmi = (w, ft, ins) => {
+      const h = (parseInt(ft)||0)*12 + (parseInt(ins)||0);
+      if (!h || !w) return null;
+      return +((w/(h*h))*703).toFixed(1);
+    };
+    const bmiLabel = b => {
+      if (!b) return "";
+      if (b < 18.5) return "Underweight"; if (b < 25) return "Normal ✓";
+      if (b < 30) return "Overweight";   if (b < 35) return "Obese I";
+      if (b < 40) return "Obese II";     return "Obese III";
+    };
+    const bmiColor = b => { if (!b) return SOFT; if (b < 25) return A; if (b < 30) return "#FFD700"; return RED; };
+    const fmtDate = s => { try { return new Date(s+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); } catch { return s; } };
+    const greet = () => { const h = new Date().getHours(); return h<12?"Good Morning":h<17?"Good Afternoon":"Good Evening"; };
+
+    // ── Analytics ─────────────────────────────────────────────
+    const calcStreak = checkins => {
+      let streak = 0;
+      const d = new Date();
+      for (let i = 0; i < 365; i++) {
+        const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        const c = checkins[s] || {};
+        if (i===0) { if (c.morning||c.evening) { streak++; d.setDate(d.getDate()-1); continue; } else break; }
+        if (c.morning && c.evening) { streak++; d.setDate(d.getDate()-1); } else break;
+      }
+      return streak;
+    };
+
+    const get7DayTrends = checkins => {
+      const days = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const dd = new Date(now); dd.setDate(now.getDate()-i);
+        const s = `${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,"0")}-${String(dd.getDate()).padStart(2,"0")}`;
+        days.push({ date:s, ...(checkins[s]||{}) });
+      }
+      const avg = (key, sub) => {
+        const vals = days.map(d => sub ? d[sub]?.[key] : d[key]).filter(v => v != null);
+        return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "--";
+      };
+      return {
+        sleepAvg: avg("sleepScore","morning"), stressAvg: avg("stressLevel","evening"),
+        tirednessAvg: avg("tiredness","evening"),
+        activeDays: days.filter(d => d.evening?.activityLevel && d.evening.activityLevel!=="Sedentary").length,
+      };
+    };
+
+    const buildInsights = checkins => {
+      const insights = [];
+      const allDates = Object.keys(checkins).sort();
+      if (allDates.length < 3) return insights;
+      const pairs = allDates.filter(d => {
+        const nd = new Date(d+"T12:00:00"); nd.setDate(nd.getDate()+1);
+        const next = nd.toISOString().split("T")[0];
+        return checkins[d]?.morning?.sleepScore && checkins[next]?.evening?.tiredness;
+      });
+      if (pairs.length >= 2) {
+        const good = pairs.filter(d => checkins[d].morning.sleepScore >= 7);
+        const bad  = pairs.filter(d => checkins[d].morning.sleepScore < 7);
+        const nt = arr => { const vals = arr.map(d => { const nd = new Date(d+"T12:00:00"); nd.setDate(nd.getDate()+1); return checkins[nd.toISOString().split("T")[0]]?.evening?.tiredness; }).filter(Boolean); return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null; };
+        const gt = nt(good), bt = nt(bad);
+        if (gt&&bt) insights.push({icon:"😴", text:`On nights you slept 7+/10, your next-day tiredness averaged ${gt}/10 — vs ${bt}/10 on poor sleep nights. Sleep is your #1 lever.`});
+      }
+      const exD  = allDates.filter(d => (checkins[d]?.evening?.exerciseDone?.length||0) > 0);
+      const noEx = allDates.filter(d => (checkins[d]?.evening?.exerciseDone?.length||0) === 0 && checkins[d]?.evening);
+      if (exD.length>=2 && noEx.length>=2) {
+        const avgS = arr => { const vals = arr.map(d=>checkins[d]?.evening?.stressLevel).filter(Boolean); return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null; };
+        const es = avgS(exD), ns = avgS(noEx);
+        if (es&&ns) insights.push({icon:"🏃", text:`Your avg stress on exercise days was ${es}/10, vs ${ns}/10 on rest days. Movement is your stress medicine.`});
+      }
+      const fastD = allDates.filter(d => checkins[d]?.morning?.fastingStatus==="✅ Yes, nailed it");
+      const noFst = allDates.filter(d => checkins[d]?.morning?.fastingStatus==="❌ No");
+      if (fastD.length>=2 && noFst.length>=1) {
+        const sc = arr => arr.filter(d => ["Strong","Gave In"].includes(checkins[d]?.evening?.cravings)).length;
+        const fp = ((sc(fastD)/fastD.length)*100).toFixed(0), np = ((sc(noFst)/noFst.length)*100).toFixed(0);
+        if (+fp < +np) insights.push({icon:"🧬", text:`When you complete your fast, strong cravings occur ${fp}% of days vs ${np}% when you skip it. Your fasting is recalibrating hunger hormones.`});
+      }
+      return insights;
+    };
+
+    // ── UI Primitives ─────────────────────────────────────────
+    const H = ({children, size=24, color="#fff", mb=0, mt=0, style={}}) => (
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:size,color,marginBottom:mb,marginTop:mt,letterSpacing:1,lineHeight:1.05,...style}}>{children}</div>
+    );
+    const Card = ({children, style={}, onClick}) => (
+      <div onClick={onClick} style={{background:CARD,border:`1px solid ${BDR}`,borderRadius:16,padding:18,...style}}>{children}</div>
+    );
+    const Btn = ({children, onClick, variant="primary", full=false, disabled=false, style={}}) => {
+      const v = {primary:{background:A,color:"#000"},ghost:{background:C2,color:SOFT,border:`1px solid ${BDR}`},outline:{background:"transparent",color:A,border:`1px solid ${A}`}};
+      return <div onClick={!disabled?onClick:undefined} style={{padding:"13px 20px",borderRadius:12,cursor:disabled?"default":"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,opacity:disabled?0.4:1,width:full?"100%":undefined,transition:"opacity 0.15s",...v[variant],...style}}>{children}</div>;
+    };
+    const Slider = ({label, value, onChange, min=1, max=10, leftLabel, rightLabel, color=A}) => (
+      <div style={{marginBottom:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <span style={{fontSize:13,color:SOFT,fontWeight:500}}>{label}</span>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color,lineHeight:1}}>{value}</span>
+        </div>
+        <input type="range" min={min} max={max} value={value} onChange={e=>onChange(+e.target.value)} />
+        {(leftLabel||rightLabel)&&<div style={{display:"flex",justifyContent:"space-between",marginTop:6}}><span style={{fontSize:10,color:MUT}}>{leftLabel}</span><span style={{fontSize:10,color:MUT}}>{rightLabel}</span></div>}
+      </div>
+    );
+    const EmojiRow = ({label, value, onChange, options}) => (
+      <div style={{marginBottom:22}}>
+        <div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>{label}</div>
+        <div style={{display:"flex",gap:6}}>
+          {options.map((o,i)=>(
+            <div key={i} onClick={()=>onChange(i+1)} style={{flex:1,background:value===i+1?"rgba(0,232,122,0.12)":C2,border:`1px solid ${value===i+1?A:BDR}`,borderRadius:10,padding:"10px 2px",textAlign:"center",cursor:"pointer",transition:"all 0.15s"}}>
+              <div style={{fontSize:20}}>{o.e}</div>
+              <div style={{fontSize:9,color:value===i+1?A:MUT,marginTop:3,lineHeight:1.2}}>{o.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+    const Chips = ({label, value=[], onChange, options, multi=true}) => (
+      <div style={{marginBottom:22}}>
+        <div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>{label}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {options.map(o=>{
+            const active = multi?value.includes(o):value===o;
+            return <div key={o} onClick={()=>{if(multi)onChange(active?value.filter(x=>x!==o):[...value,o]);else onChange(o);}} style={{padding:"8px 14px",borderRadius:20,border:`1px solid ${active?A:BDR}`,background:active?"rgba(0,232,122,0.12)":C2,color:active?A:SOFT,fontSize:13,fontWeight:500,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s"}}>{o}</div>;
+          })}
+        </div>
+      </div>
+    );
+    const Stepper = ({label, value, onChange, min=0, max=15}) => (
+      <div style={{marginBottom:22}}>
+        <div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>{label}</div>
+        <div style={{display:"flex",alignItems:"center",gap:16,background:C2,border:`1px solid ${BDR}`,borderRadius:12,padding:"8px 16px"}}>
+          <div onClick={()=>onChange(Math.max(min,value-1))} style={{width:36,height:36,borderRadius:8,background:BDR,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:22,color:SOFT,userSelect:"none"}}>−</div>
+          <div style={{flex:1,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:36,color:A,lineHeight:1}}>{value}{value===max?"+":" "}</div>
+          <div onClick={()=>onChange(Math.min(max,value+1))} style={{width:36,height:36,borderRadius:8,background:BDR,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:22,color:SOFT,userSelect:"none"}}>+</div>
+        </div>
+      </div>
+    );
+    const Divider = ({label}) => (
+      <div style={{display:"flex",alignItems:"center",gap:12,margin:"20px 0"}}>
+        <div style={{flex:1,height:1,background:BDR}} />
+        {label&&<span style={{fontSize:11,color:MUT,textTransform:"uppercase",letterSpacing:2,whiteSpace:"nowrap"}}>{label}</span>}
+        <div style={{flex:1,height:1,background:BDR}} />
+      </div>
+    );
+
+    // ── Loading ──────────────────────────────────────────────
+    const Loading = () => (
+      <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:BG}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:60,color:A,lineHeight:1}}>GET FIT.</div>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:"#fff"}}>LIVE LONGER.</div>
+        <div style={{color:MUT,fontSize:13,marginTop:20}}>Loading your plan...</div>
+      </div>
+    );
+
+    // ── Profile Setup ────────────────────────────────────────
+    const ProfileSetup = ({onSave}) => {
+      const [form, setForm] = useState({name:"",startWeight:"303",goalWeight:"200",heightFt:"5",heightIn:"11"});
+      const f = (k,v) => setForm(p=>({...p,[k]:v}));
+      const currentBMI = bmi(+form.startWeight,form.heightFt,form.heightIn);
+      const goalBMI    = bmi(+form.goalWeight,form.heightFt,form.heightIn);
+      const valid = form.name.trim() && form.startWeight && form.goalWeight && form.heightFt;
+      return (
+        <div style={{minHeight:"100vh",background:BG,overflowY:"auto"}}>
+          <div style={{maxWidth:420,margin:"0 auto",padding:"40px 20px 100px"}}>
+            <div style={{textAlign:"center",marginBottom:36}}>
+              <div style={{fontSize:11,letterSpacing:4,color:A,textTransform:"uppercase",marginBottom:12}}>Welcome to</div>
+              <H size={58} color="#fff" style={{lineHeight:0.95}}>GET FIT.<br/><span style={{color:A}}>LIVE LONGER.</span></H>
+              <p style={{color:SOFT,fontSize:14,marginTop:16,lineHeight:1.7}}>Your personal transformation tracker. Daily check-ins, sleep quality, and weight progress — all in one place.</p>
+            </div>
+            <Card style={{marginBottom:16}}>
+              <H size={20} color={A} mb={20}>YOUR PROFILE</H>
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:12,color:SOFT,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Your Name</div>
+                <input type="text" placeholder="e.g. John" value={form.name} onChange={e=>f("name",e.target.value)} />
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+                <div><div style={{fontSize:12,color:SOFT,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Height (ft)</div><input type="number" placeholder="5" value={form.heightFt} onChange={e=>f("heightFt",e.target.value)} /></div>
+                <div><div style={{fontSize:12,color:SOFT,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Height (in)</div><input type="number" placeholder="11" value={form.heightIn} onChange={e=>f("heightIn",e.target.value)} /></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+                <div><div style={{fontSize:12,color:SOFT,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Start Weight (lbs)</div><input type="number" placeholder="303" value={form.startWeight} onChange={e=>f("startWeight",e.target.value)} /></div>
+                <div><div style={{fontSize:12,color:SOFT,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:1}}>Goal Weight (lbs)</div><input type="number" placeholder="200" value={form.goalWeight} onChange={e=>f("goalWeight",e.target.value)} /></div>
+              </div>
+              {currentBMI&&(
+                <div style={{background:C2,border:`1px solid ${BDR}`,borderRadius:12,padding:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Starting BMI</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:36,color:bmiColor(currentBMI),lineHeight:1}}>{currentBMI}</div>
+                    <div style={{fontSize:11,color:bmiColor(currentBMI),marginTop:4}}>{bmiLabel(currentBMI)}</div>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Goal BMI</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:36,color:bmiColor(goalBMI),lineHeight:1}}>{goalBMI||"--"}</div>
+                    <div style={{fontSize:11,color:bmiColor(goalBMI),marginTop:4}}>{bmiLabel(goalBMI)}</div>
+                  </div>
+                </div>
+              )}
+            </Card>
+            <Btn full disabled={!valid} onClick={()=>onSave({name:form.name.trim(),startWeight:+form.startWeight,currentWeight:+form.startWeight,goalWeight:+form.goalWeight,heightFt:form.heightFt,heightIn:form.heightIn,startDate:localToday()})}>
+              🚀 START MY JOURNEY
+            </Btn>
+          </div>
+        </div>
+      );
+    };
+
+    // ── App Shell ────────────────────────────────────────────
+    const AppShell = ({children, tab, setTab, morningDone, eveningDone}) => {
+      const nav = [
+        {key:"home",icon:"🏠",label:"Home"},
+        {key:"morning",icon:"🌅",label:"Morning",badge:!morningDone},
+        {key:"evening",icon:"🌙",label:"Evening",badge:!eveningDone},
+        {key:"history",icon:"📊",label:"History"},
+      ];
+      return (
+        <div style={{maxWidth:420,margin:"0 auto",height:"100vh",background:BG,display:"flex",flexDirection:"column",position:"relative"}}>
+          <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:82}}>{children}</div>
+          <div style={{flexShrink:0,background:"rgba(10,10,10,0.97)",backdropFilter:"blur(20px)",borderTop:`1px solid ${BDR}`,display:"flex",zIndex:100}}>
+            {nav.map(n=>(
+              <div key={n.key} onClick={()=>setTab(n.key)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"10px 0 14px",cursor:"pointer",position:"relative"}}>
+                {n.badge&&<div style={{position:"absolute",top:8,right:"calc(50% - 16px)",width:7,height:7,borderRadius:"50%",background:A}} />}
+                <div style={{fontSize:20,marginBottom:2}}>{n.icon}</div>
+                <div style={{fontSize:10,color:tab===n.key?A:MUT,fontWeight:tab===n.key?600:400,letterSpacing:0.5}}>{n.label}</div>
+                {tab===n.key&&<div style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:24,height:2,background:A,borderRadius:1}} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // ── Home Dashboard ───────────────────────────────────────
+    const HomeScreen = ({profile, checkins, weightLog, morningDone, eveningDone, setTab, addWeight}) => {
+      const [showModal, setShowModal] = useState(false);
+      const [newWeight, setNewWeight] = useState(String(profile.currentWeight||""));
+      const trends = get7DayTrends(checkins);
+      const streak = calcStreak(checkins);
+      const pct  = Math.min(100,Math.max(0,((profile.startWeight-profile.currentWeight)/(profile.startWeight-profile.goalWeight))*100));
+      const lost = +(profile.startWeight-profile.currentWeight).toFixed(1);
+      const toGo = +(profile.currentWeight-profile.goalWeight).toFixed(1);
+      const currentBMI = bmi(profile.currentWeight,profile.heightFt,profile.heightIn);
+      const nextMs = [5,10,25,50,75,100].find(m=>m>lost)||100;
+      const bothDone = morningDone && eveningDone;
+      return (
+        <div style={{padding:"20px 16px"}}>
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:11,color:MUT,letterSpacing:3,textTransform:"uppercase"}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
+            <H size={36} color="#fff" mt={4}>{greet()}, <span style={{color:A}}>{profile.name.split(" ")[0]}</span></H>
+          </div>
+          <Card style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div>
+                <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Current Weight</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:5}}>
+                  <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:52,color:"#fff",lineHeight:1}}>{profile.currentWeight}</span>
+                  <span style={{fontSize:14,color:SOFT}}>lbs</span>
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>BMI</div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:30,color:bmiColor(currentBMI)}}>{currentBMI||"--"}</div>
+                <div style={{fontSize:10,color:bmiColor(currentBMI)}}>{bmiLabel(currentBMI)}</div>
+              </div>
+            </div>
+            <div style={{background:BDR,borderRadius:99,height:8,marginBottom:10,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:99,background:`linear-gradient(90deg,${A},#00ffaa)`,width:`${pct}%`,transition:"width 0.6s"}} />
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:12}}>
+              <span style={{color:MUT}}>Start: {profile.startWeight}</span>
+              <span style={{color:A,fontWeight:600}}>↓ {lost} lbs lost</span>
+              <span style={{color:MUT}}>Goal: {profile.goalWeight}</span>
+            </div>
+            {lost < nextMs&&<div style={{background:"rgba(0,232,122,0.06)",border:`1px solid rgba(0,232,122,0.15)`,borderRadius:8,padding:"8px 12px",fontSize:12,color:A,marginBottom:12}}>🎯 Next milestone: <strong>{nextMs} lbs lost</strong> — only {(nextMs-lost).toFixed(1)} lbs away!</div>}
+            <Btn variant="ghost" full onClick={()=>setShowModal(true)} style={{fontSize:13,padding:"10px 16px"}}>⚖️ Log Today's Weight</Btn>
+          </Card>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+            <Card style={{textAlign:"center",padding:16}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:52,color:A,lineHeight:1}}>{streak}</div>
+              <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:1.5,marginTop:6}}>Day Streak 🔥</div>
+            </Card>
+            <Card style={{textAlign:"center",padding:16}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:52,color:SOFT,lineHeight:1}}>{toGo}</div>
+              <div style={{fontSize:10,color:MUT,textTransform:"uppercase",letterSpacing:1.5,marginTop:6}}>lbs to goal</div>
+            </Card>
+          </div>
+          <Card style={{marginBottom:14}}>
+            <H size={18} color={A} mb={16}>TODAY'S CHECK-INS</H>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {[{key:"morning",done:morningDone,icon:"🌅",label:"Morning Check-In",sub:"Sleep quality · Energy · Fasting"},{key:"evening",done:eveningDone,icon:"🌙",label:"Evening Check-In",sub:"Stress · Activity · Cravings · Mood"}].map(item=>(
+                <div key={item.key} onClick={()=>setTab(item.key)} style={{display:"flex",alignItems:"center",gap:12,background:C2,border:`1px solid ${item.done?A:BDR}`,borderRadius:12,padding:14,cursor:"pointer"}}>
+                  <div style={{width:38,height:38,borderRadius:"50%",background:item.done?"rgba(0,232,122,0.15)":BDR,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{item.done?"✅":item.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,fontWeight:600,color:item.done?A:"#fff"}}>{item.label}</div>
+                    <div style={{fontSize:12,color:MUT,marginTop:2}}>{item.done?"Completed · Tap to review":item.sub}</div>
+                  </div>
+                  <div style={{fontSize:18,color:MUT}}>›</div>
+                </div>
+              ))}
+            </div>
+            {bothDone&&<div style={{marginTop:14,textAlign:"center",padding:16,background:"rgba(0,232,122,0.08)",border:`1px solid rgba(0,232,122,0.2)`,borderRadius:12}}><div style={{fontSize:28}}>🎉</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:A,marginTop:6}}>BOTH CHECK-INS DONE!</div><div style={{fontSize:12,color:MUT,marginTop:4}}>Streak maintained · Keep going</div></div>}
+          </Card>
+          <Card>
+            <H size={18} color={A} mb={16}>7-DAY TRENDS</H>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[{label:"Avg Sleep Score",val:trends.sleepAvg,icon:"😴",good:v=>+v>=7},{label:"Avg Stress",val:trends.stressAvg,icon:"🧠",good:v=>+v<=4},{label:"Avg Tiredness",val:trends.tirednessAvg,icon:"⚡",good:v=>+v<=4},{label:"Active Days",val:`${trends.activeDays}/7`,icon:"🏃",good:v=>parseInt(v)>=4}].map((t,i)=>{
+                const isGood=t.val!=="--"&&t.good(t.val);
+                const col=t.val==="--"?MUT:isGood?A:"#FFD700";
+                return <div key={i} style={{background:C2,border:`1px solid ${BDR}`,borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:24,marginBottom:6}}>{t.icon}</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:30,color:col,lineHeight:1}}>{t.val}</div><div style={{fontSize:10,color:MUT,marginTop:5,lineHeight:1.4}}>{t.label}</div></div>;
+              })}
+            </div>
+          </Card>
+          {showModal&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={()=>setShowModal(false)}>
+              <div style={{background:CARD,border:`1px solid ${BDR}`,borderRadius:"20px 20px 0 0",padding:28,width:"100%",maxWidth:420}} onClick={e=>e.stopPropagation()}>
+                <H size={26} color={A} mb={6}>LOG YOUR WEIGHT</H>
+                <p style={{fontSize:13,color:MUT,marginBottom:18}}>Best logged first thing in the morning, same conditions each time.</p>
+                <input type="number" value={newWeight} onChange={e=>setNewWeight(e.target.value)} placeholder="Enter weight in lbs" style={{fontSize:28,textAlign:"center",padding:16,marginBottom:16}} />
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Btn variant="ghost" onClick={()=>setShowModal(false)}>Cancel</Btn>
+                  <Btn disabled={!newWeight} onClick={()=>{if(newWeight){addWeight(newWeight);setShowModal(false);}}}>Save ✓</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ── Morning Check-In ─────────────────────────────────────
+    const MorningCheckin = ({existing, onSave, onBack}) => {
+      const [form, setForm] = useState(existing||{sleepScore:7,timesWoken:2,sleepNotes:"",fastingStatus:null,energyLevel:null,morningWeight:""});
+      const f = (k,v) => setForm(p=>({...p,[k]:v}));
+      const canSave = form.fastingStatus && form.energyLevel;
+      const sleepColor = form.sleepScore>=7?A:form.sleepScore>=5?"#FFD700":RED;
+      return (
+        <div style={{padding:"20px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <div onClick={onBack} style={{width:36,height:36,borderRadius:"50%",background:C2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:SOFT}}>‹</div>
+            <div><div style={{fontSize:10,color:MUT,letterSpacing:3,textTransform:"uppercase"}}>Daily Log</div><H size={28}>MORNING CHECK-IN 🌅</H></div>
+          </div>
+          <Card style={{marginBottom:14}}>
+            <H size={16} color={A} mb={18}>LAST NIGHT'S SLEEP</H>
+            <Slider label="Sleep Quality Score" value={form.sleepScore} onChange={v=>f("sleepScore",v)} leftLabel="😩 Terrible" rightLabel="😴 Perfect" color={sleepColor} />
+            <Stepper label="Times You Woke Up During the Night" value={form.timesWoken} onChange={v=>f("timesWoken",v)} />
+            <div><div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>Sleep Notes <span style={{color:MUT,fontWeight:400}}>(optional)</span></div><textarea rows={2} placeholder="e.g. restless, vivid dreams, snoring worse than usual..." value={form.sleepNotes} onChange={e=>f("sleepNotes",e.target.value)} /></div>
+          </Card>
+          <Card style={{marginBottom:14}}>
+            <H size={16} color={A} mb={18}>THIS MORNING</H>
+            <EmojiRow label="Morning Energy Level" value={form.energyLevel} onChange={v=>f("energyLevel",v)} options={[{e:"😴",l:"Wiped"},{e:"😕",l:"Tired"},{e:"😐",l:"OK"},{e:"🙂",l:"Good"},{e:"⚡",l:"Great"}]} />
+            <Chips label="Fasting Window — Did You Complete It?" value={form.fastingStatus} onChange={v=>f("fastingStatus",v)} multi={false} options={["✅ Yes, nailed it","⚡ Partial","❌ No"]} />
+            <Divider label="optional" />
+            <div><div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>Morning Weight (lbs)</div><input type="number" placeholder="Log your weight to auto-sync..." value={form.morningWeight} onChange={e=>f("morningWeight",e.target.value)} /></div>
+          </Card>
+          <Btn full disabled={!canSave} onClick={()=>onSave({...form,timestamp:new Date().toISOString()})}>SAVE MORNING CHECK-IN ✓</Btn>
+          {!canSave&&<p style={{fontSize:12,color:MUT,textAlign:"center",marginTop:10}}>Complete energy level and fasting status to save</p>}
+        </div>
+      );
+    };
+
+    // ── Evening Check-In ─────────────────────────────────────
+    const EveningCheckin = ({existing, onSave, onBack}) => {
+      const [form, setForm] = useState(existing||{stressLevel:5,activityLevel:null,tiredness:5,exerciseDone:[],cravings:null,mood:null,dayNotes:""});
+      const f = (k,v) => setForm(p=>({...p,[k]:v}));
+      const canSave = form.activityLevel && form.cravings && form.mood;
+      const stressColor = form.stressLevel<=4?A:form.stressLevel<=7?"#FFD700":RED;
+      const tiredColor  = form.tiredness<=4?A:form.tiredness<=7?"#FFD700":RED;
+      return (
+        <div style={{padding:"20px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <div onClick={onBack} style={{width:36,height:36,borderRadius:"50%",background:C2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:SOFT}}>‹</div>
+            <div><div style={{fontSize:10,color:MUT,letterSpacing:3,textTransform:"uppercase"}}>Daily Log</div><H size={28}>EVENING CHECK-IN 🌙</H></div>
+          </div>
+          <Card style={{marginBottom:14}}>
+            <H size={16} color={A} mb={18}>TODAY'S STRESS & WELLBEING</H>
+            <Slider label="Stress Level Today" value={form.stressLevel} onChange={v=>f("stressLevel",v)} leftLabel="😌 Totally calm" rightLabel="😤 Overwhelmed" color={stressColor} />
+            <Slider label="How Tired Did You Feel Today?" value={form.tiredness} onChange={v=>f("tiredness",v)} leftLabel="⚡ Energized" rightLabel="💀 Exhausted" color={tiredColor} />
+            <EmojiRow label="Overall Mood Today" value={form.mood} onChange={v=>f("mood",v)} options={[{e:"😞",l:"Rough"},{e:"😕",l:"Meh"},{e:"😐",l:"Okay"},{e:"🙂",l:"Good"},{e:"😁",l:"Great"}]} />
+          </Card>
+          <Card style={{marginBottom:14}}>
+            <H size={16} color={A} mb={18}>MOVEMENT & ACTIVITY</H>
+            <Chips label="Overall Activity Level Today" value={form.activityLevel} onChange={v=>f("activityLevel",v)} multi={false} options={["Sedentary","Light","Moderate","Active","Very Active"]} />
+            <Chips label="Exercise Completed (select all)" value={form.exerciseDone} onChange={v=>f("exerciseDone",v)} multi={true} options={["🚶 Walk","🏃 Run","🚴 Peloton","💪 Bodyweight","🏋️ Other"]} />
+          </Card>
+          <Card style={{marginBottom:14}}>
+            <H size={16} color={A} mb={18}>CRAVINGS & NOTES</H>
+            <Chips label="Sugar / Soda Cravings Today" value={form.cravings} onChange={v=>f("cravings",v)} multi={false} options={["None 🙌","Mild 😐","Strong 😬","Gave In 😔"]} />
+            <Divider label="optional" />
+            <div><div style={{fontSize:13,color:SOFT,fontWeight:500,marginBottom:10}}>Day Notes</div><textarea rows={3} placeholder="How did today go? Anything worth noting..." value={form.dayNotes} onChange={e=>f("dayNotes",e.target.value)} /></div>
+          </Card>
+          <Btn full disabled={!canSave} onClick={()=>onSave({...form,timestamp:new Date().toISOString()})}>SAVE EVENING CHECK-IN ✓</Btn>
+          {!canSave&&<p style={{fontSize:12,color:MUT,textAlign:"center",marginTop:10}}>Complete activity, cravings, and mood to save</p>}
+        </div>
+      );
+    };
+
+    // ── History & Insights ───────────────────────────────────
+    const HistoryScreen = ({checkins, weightLog, profile}) => {
+      const sortedDates = Object.keys(checkins).sort((a,b)=>b.localeCompare(a)).slice(0,60);
+      const insights = buildInsights(checkins);
+      const chartData = weightLog.slice(-30).map(w=>({date:w.date.slice(5).replace("-","/"),weight:w.weight}));
+      return (
+        <div style={{padding:"20px 16px"}}>
+          <H size={40} color="#fff" mb={4}>HISTORY &<br/><span style={{color:A}}>INSIGHTS</span></H>
+          <p style={{color:MUT,fontSize:13,marginBottom:24,lineHeight:1.6}}>Your patterns reveal your progress. Data beats guesswork.</p>
+          {weightLog.length>1?(
+            <Card style={{marginBottom:16}}>
+              <H size={16} color={A} mb={16}>WEIGHT TREND</H>
+              <ResponsiveContainer width="100%" height={170}>
+                <LineChart data={chartData} margin={{top:5,right:5,bottom:5,left:-20}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={BDR} />
+                  <XAxis dataKey="date" stroke={MUT} tick={{fontSize:9,fill:MUT}} interval="preserveStartEnd" />
+                  <YAxis stroke={MUT} tick={{fontSize:9,fill:MUT}} domain={["dataMin - 3","dataMax + 3"]} />
+                  <Tooltip contentStyle={{background:C2,border:`1px solid ${BDR}`,borderRadius:8,color:"#fff",fontSize:12}} formatter={v=>[`${v} lbs`,"Weight"]} />
+                  <Line type="monotone" dataKey="weight" stroke={A} strokeWidth={2.5} dot={{fill:A,r:3,strokeWidth:0}} activeDot={{r:5,fill:A}} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:12}}>
+                <span style={{color:MUT}}>Start: <strong style={{color:"#fff"}}>{profile.startWeight}</strong></span>
+                {weightLog.length>0&&<span style={{color:A,fontWeight:600}}>Latest: {weightLog[weightLog.length-1].weight} lbs</span>}
+                <span style={{color:MUT}}>Goal: <strong style={{color:"#fff"}}>{profile.goalWeight}</strong></span>
+              </div>
+            </Card>
+          ):(
+            <Card style={{marginBottom:16,textAlign:"center",padding:32}}><div style={{fontSize:36,marginBottom:10}}>⚖️</div><div style={{color:SOFT,fontSize:14}}>Log your weight a few times to see your trend chart.</div></Card>
+          )}
+          {insights.length>0&&(
+            <Card style={{marginBottom:16}}>
+              <H size={16} color={A} mb={4}>✨ YOUR PERSONAL INSIGHTS</H>
+              <p style={{fontSize:12,color:MUT,marginBottom:14,lineHeight:1.5}}>Patterns discovered from your check-in data</p>
+              {insights.map((ins,i)=>(
+                <div key={i} style={{display:"flex",gap:14,padding:"12px 0",borderBottom:i<insights.length-1?`1px solid ${BDR}`:"none"}}>
+                  <span style={{fontSize:24,flexShrink:0}}>{ins.icon}</span>
+                  <p style={{fontSize:13,color:SOFT,lineHeight:1.65}}>{ins.text}</p>
+                </div>
+              ))}
+            </Card>
+          )}
+          {insights.length===0&&Object.keys(checkins).length<3&&(
+            <div style={{background:"rgba(0,232,122,0.05)",border:`1px solid rgba(0,232,122,0.15)`,borderRadius:12,padding:16,marginBottom:16,textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>🧬</div>
+              <div style={{fontSize:13,color:A,fontWeight:600}}>Insights unlock after 3+ days</div>
+              <div style={{fontSize:12,color:MUT,marginTop:6,lineHeight:1.5}}>Keep completing check-ins and we'll surface patterns in your sleep, stress, and weight data.</div>
+            </div>
+          )}
+          <H size={24} color="#fff" mb={14}>CHECK-IN LOG</H>
+          {sortedDates.length===0?(
+            <Card style={{textAlign:"center",padding:32}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{color:SOFT,fontSize:14}}>Complete your first check-in to start building your log.</div></Card>
+          ):sortedDates.map(date=>{
+            const c = checkins[date];
+            return (
+              <Card key={date} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18}}>{fmtDate(date)}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {c.morning&&<span style={{fontSize:10,background:"rgba(0,232,122,0.1)",color:A,border:`1px solid rgba(0,232,122,0.25)`,borderRadius:20,padding:"2px 9px"}}>🌅 AM</span>}
+                    {c.evening&&<span style={{fontSize:10,background:"rgba(0,232,122,0.1)",color:A,border:`1px solid rgba(0,232,122,0.25)`,borderRadius:20,padding:"2px 9px"}}>🌙 PM</span>}
+                  </div>
+                </div>
+                {c.morning&&<div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:c.evening?8:0}}><span style={{fontSize:12,color:SOFT}}>💤 Sleep: <strong style={{color:"#fff"}}>{c.morning.sleepScore}/10</strong></span><span style={{fontSize:12,color:SOFT}}>🌙 Woke: <strong style={{color:"#fff"}}>{c.morning.timesWoken}x</strong></span><span style={{fontSize:12,color:SOFT}}>⚡ Energy: <strong style={{color:"#fff"}}>{energyLabels[c.morning.energyLevel]||"–"}</strong></span>{c.morning.fastingStatus&&<span style={{fontSize:12,color:c.morning.fastingStatus.startsWith("✅")?A:SOFT}}>{c.morning.fastingStatus.slice(0,2)} Fast</span>}</div>}
+                {c.evening&&<div style={{display:"flex",flexWrap:"wrap",gap:10}}><span style={{fontSize:12,color:SOFT}}>🧠 Stress: <strong style={{color:"#fff"}}>{c.evening.stressLevel}/10</strong></span><span style={{fontSize:12,color:SOFT}}>😴 Tired: <strong style={{color:"#fff"}}>{c.evening.tiredness}/10</strong></span><span style={{fontSize:12,color:SOFT}}>🏃 <strong style={{color:"#fff"}}>{c.evening.activityLevel}</strong></span>{(c.evening.exerciseDone?.length>0)&&<span style={{fontSize:12,color:A}}>✓ Exercised</span>}{c.evening.cravings&&<span style={{fontSize:12,color:SOFT}}>🍬 {c.evening.cravings.split(" ")[0]}</span>}{c.evening.mood&&<span style={{fontSize:12,color:SOFT}}>Mood: <strong style={{color:"#fff"}}>{moodLabels[c.evening.mood]}</strong></span>}</div>}
+                {c.morning?.sleepNotes&&<p style={{fontSize:11,color:MUT,marginTop:8,fontStyle:"italic"}}>"{c.morning.sleepNotes}"</p>}
+                {c.evening?.dayNotes&&<p style={{fontSize:11,color:MUT,marginTop:8,fontStyle:"italic"}}>"{c.evening.dayNotes}"</p>}
+              </Card>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // ── Root App ─────────────────────────────────────────────
+    function App() {
+      const [ready,     setReady]     = useState(false);
+      const [profile,   setProfile]   = useState(null);
+      const [checkins,  setCheckins]  = useState({});
+      const [weightLog, setWeightLog] = useState([]);
+      const [tab,       setTab]       = useState("home");
+
+      useEffect(()=>{
+        (async()=>{
+          const p = await db.get("profile");
+          const c = await db.get("checkins");
+          const w = await db.get("weightLog");
+          setProfile(p); setCheckins(c||{}); setWeightLog(w||[]); setReady(true);
+        })();
+      },[]);
+
+      const saveProfile = async p => {
+        setProfile(p); await db.set("profile",p);
+        const initLog = [{date:p.startDate,weight:p.startWeight}];
+        setWeightLog(initLog); await db.set("weightLog",initLog);
+      };
+
+      const saveCheckin = async (date,type,data) => {
+        const updated = {...checkins,[date]:{...(checkins[date]||{}),[type]:data}};
+        setCheckins(updated); await db.set("checkins",updated);
+        if (type==="morning" && data.morningWeight) {
+          const entry = {date,weight:+data.morningWeight};
+          const updLog = [...weightLog.filter(w=>w.date!==date),entry].sort((a,b)=>a.date.localeCompare(b.date));
+          setWeightLog(updLog); await db.set("weightLog",updLog);
+          const up = {...profile,currentWeight:+data.morningWeight};
+          setProfile(up); await db.set("profile",up);
+        }
+      };
+
+      const addWeight = async weight => {
+        const t = localToday();
+        const entry = {date:t,weight:parseFloat(weight)};
+        const updLog = [...weightLog.filter(w=>w.date!==t),entry].sort((a,b)=>a.date.localeCompare(b.date));
+        setWeightLog(updLog); await db.set("weightLog",updLog);
+        const up = {...profile,currentWeight:parseFloat(weight)};
+        setProfile(up); await db.set("profile",up);
+      };
+
+      if (!ready)   return <Loading />;
+      if (!profile) return <ProfileSetup onSave={saveProfile} />;
+
+      const t = localToday();
+      const todayCheckin = checkins[t]||{};
+      const morningDone  = !!todayCheckin.morning;
+      const eveningDone  = !!todayCheckin.evening;
+
+      return (
+        <AppShell tab={tab} setTab={setTab} morningDone={morningDone} eveningDone={eveningDone}>
+          {tab==="home"    && <HomeScreen    profile={profile} checkins={checkins} weightLog={weightLog} morningDone={morningDone} eveningDone={eveningDone} setTab={setTab} addWeight={addWeight} />}
+          {tab==="morning" && <MorningCheckin existing={todayCheckin.morning} onSave={d=>{saveCheckin(t,"morning",d);setTab("home");}} onBack={()=>setTab("home")} />}
+          {tab==="evening" && <EveningCheckin existing={todayCheckin.evening} onSave={d=>{saveCheckin(t,"evening",d);setTab("home");}} onBack={()=>setTab("home")} />}
+          {tab==="history" && <HistoryScreen  checkins={checkins} weightLog={weightLog} profile={profile} />}
+        </AppShell>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
