@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Get Fit. Live Longer.</title>
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Get Fit" />
+  <meta name="theme-color" content="#0A0A0A" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%230A0A0A'/%3E%3Crect x='30' y='30' width='452' height='452' rx='90' fill='%23141414'/%3E%3Ctext x='256' y='280' font-family='Arial Black' font-size='180' font-weight='900' fill='%2300E87A' text-anchor='middle'%3EGF%3C/text%3E%3Ctext x='256' y='400' font-family='Arial' font-size='58' fill='%23888' text-anchor='middle'%3ELIVE LONGER%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #0A0A0A; overscroll-behavior: none; }
+    body { font-family: 'DM Sans', sans-serif; color: #fff; }
+    #root { height: 100%; }
+    input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #2A2A2A; outline: none; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #00E87A; cursor: pointer; border: 3px solid #0A0A0A; box-shadow: 0 0 0 2px #00E87A; }
+    input[type=number], input[type=text] { background: #1C1C1C; border: 1px solid #2A2A2A; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; padding: 12px 14px; width: 100%; outline: none; -moz-appearance: textfield; }
+    input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type=number]:focus, input[type=text]:focus { border-color: #00E87A; }
+    textarea { background: #1C1C1C; border: 1px solid #2A2A2A; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 12px 14px; width: 100%; outline: none; resize: none; }
+    textarea:focus { border-color: #00E87A; }
+    ::-webkit-scrollbar { width: 0; }
+    .err { padding: 40px 20px; color: #fff; font-family: sans-serif; }
+    .err h2 { color: #FF5555; margin-bottom: 12px; }
+    .err pre { background: #1C1C1C; padding: 14px; border-radius: 8px; font-size: 11px; overflow: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div id="root"><div style="height:100vh;display:flex;align-items:center;justify-content:center;color:#666;font-family:sans-serif;font-size:14px">Loading...</div></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState } = React;
+
+    const A = "#00E87A", BG = "#0A0A0A", CARD = "#141414", C2 = "#1C1C1C";
+    const BDR = "#2A2A2A", MUT = "#666", SOFT = "#AAA", RED = "#FF5555";
+    const energyLabels = ["","Wiped","Tired","OK","Good","Great"];
+    const moodLabels   = ["","Rough","Meh","OK","Good","Great"];
+
+    const db = {
+      get: (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } },
+      set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+    };
+
+    const localToday = () => {
+      const d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+    };
+    const bmi = (w, ft, ins) => {
+      const h = (parseInt(ft)||0)*12 + (parseInt(ins)||0);
+      if (!h || !w) return null;
+      return +((w/(h*h))*703).toFixed(1);
+    };
+    const bmiLabel = (b) => {
+      if (!b) return "";
+      if (b < 18.5) return "Underweight";
+      if (b < 25) return "Normal";
+      if (b < 30) return "Overweight";
+      if (b < 35) return "Obese I";
+      if (b < 40) return "Obese II";
+      return "Obese III";
+    };
+    const bmiColor = (b) => { if (!b) return SOFT; if (b < 25) return A; if (b < 30) return "#FFD700"; return RED; };
+    const fmtDate = (s) => { try { return new Date(s+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); } catch(e) { return s; } };
+    const greet = () => { const h = new Date().getHours(); return h<12?"Good Morning":h<17?"Good Afternoon":"Good Evening"; };
+
+    const calcStreak = (checkins) => {
+      let streak = 0;
+      const d = new Date();
+      for (let i = 0; i < 365; i++) {
+        const s = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+        const c = checkins[s] || {};
+        if (i===0) { if (c.morning||c.evening) { streak++; d.setDate(d.getDate()-1); continue; } else break; }
+        if (c.morning && c.evening) { streak++; d.setDate(d.getDate()-1); } else break;
+      }
+      return streak;
+    };
+
+    const get7DayTrends = (checkins) => {
+      const days = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const dd = new Date(now); dd.setDate(now.getDate()-i);
+        const s = dd.getFullYear() + "-" + String(dd.getMonth()+1).padStart(2,"0") + "-" + String(dd.getDate()).padStart(2,"0");
+        days.push(Object.assign({ date: s }, checkins[s] || {}));
+      }
+      const avg = (key, sub) => {
+        const vals = days.map((d) => sub ? (d[sub] && d[sub][key]) : d[key]).filter((v) => v != null);
+        return vals.length ? (vals.reduce((a,b) => a+b, 0) / vals.length).toFixed(1) : "--";
+      };
+      return {
+        sleepAvg: avg("sleepScore","morning"),
+        stressAvg: avg("stressLevel","evening"),
+        tirednessAvg: avg("tiredness","evening"),
+        activeDays: days.filter((d) => d.evening && d.evening.activityLevel && d.evening.activityLevel !== "Sedentary").length
+      };
+    };
+
+    const buildInsights = (checkins) => {
+      const insights = [];
+      const allDates = Object.keys(checkins).sort();
+      if (allDates.length < 3) return insights;
+      const exD  = allDates.filter((d) => checkins[d] && checkins[d].evening && checkins[d].evening.exerciseDone && checkins[d].evening.exerciseDone.length > 0);
+      const noEx = allDates.filter((d) => checkins[d] && checkins[d].evening && (!checkins[d].evening.exerciseDone || checkins[d].evening.exerciseDone.length === 0));
+      if (exD.length >= 2 && noEx.length >= 2) {
+        const avgS = (arr) => {
+          const vals = arr.map((d) => checkins[d] && checkins[d].evening && checkins[d].evening.stressLevel).filter(Boolean);
+          return vals.length ? (vals.reduce((a,b) => a+b, 0) / vals.length).toFixed(1) : null;
+        };
+        const es = avgS(exD), ns = avgS(noEx);
+        if (es && ns) insights.push({ icon:"🏃", text: "Your avg stress on exercise days was " + es + "/10, vs " + ns + "/10 on rest days. Movement is your stress medicine." });
+      }
+      return insights;
+    };
+
+    // ═════════════════════════════════════════════════════════
+    // EXERCISE PLAN ENGINE
+    // Research-based: Couch-to-5K + NHS + Gymshark + Franciscan Health
+    // Progression: walk base → intervals → running → 5K capable
+    // ═════════════════════════════════════════════════════════
+    const getWorkoutForDay = (dayNumber) => {
+      // dayNumber = days since start (0 = day 1)
+      const week = Math.floor(dayNumber / 7) + 1;
+      const dayOfWeek = new Date().getDay(); // 0=Sun, 3=Wed (office day)
+
+      // PHASE 1: Weeks 1-2 — Build quickly with brisk walks + early intervals
+      if (week <= 2) {
+        const schedule = {
+          0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 30, details: "30-min easy walk. Flat route. Conversation pace. Stay consistent — movement is the habit.", intensity: "Low" },
+          1: { type: "walk", title: "Brisk Walk", icon: "🚶", duration: 35, details: "35-min brisk walk. Break a light sweat. Aim for 3.5-4 mph pace if on a treadmill.", intensity: "Moderate" },
+          2: { type: "peloton", title: "Peloton Beginner Ride", icon: "🚴", duration: 25, details: "25-min beginner ride, resistance 35-45%. Target cadence 80-90 rpm. Search 'Low Impact' or 'Beginner'.", intensity: "Moderate" },
+          3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 25, details: "Office day — 25-min lunch walk. Take the stairs. Movement counts everywhere.", intensity: "Low" },
+          4: { type: "bodyweight", title: "Bodyweight Foundation", icon: "💪", duration: 25, details: "Incline push-ups 3x10 · Bodyweight squats 3x12 · Glute bridges 3x10 · Plank hold 3x20sec · Dead bug 3x8/side. Rest 60s between sets.", intensity: "Moderate" },
+          5: { type: "intervals", title: "Walk-Run Intervals", icon: "🏃", duration: 30, details: "5-min warm-up walk. Then: 30-sec light jog / 90-sec walk × 8 rounds. 5-min cool-down. If jogging hurts joints, power-walk fast instead.", intensity: "Moderate-High" },
+          6: { type: "peloton", title: "Peloton Endurance", icon: "🚴", duration: 35, details: "35-min endurance ride. Steady resistance, steady cadence. Pick a ride with music you love.", intensity: "Moderate" }
+        };
+        return schedule[dayOfWeek];
+      }
+
+      // PHASE 2: Weeks 3-5 — Walk-to-Run intervals intensify
+      if (week <= 5) {
+        const schedule = {
+          0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 30, details: "30-min easy walk. Let your body absorb the training load.", intensity: "Low" },
+          1: { type: "intervals", title: "Walk-Run Intervals", icon: "🏃", duration: 30, details: "5-min warm-up. Then: 60-sec jog / 90-sec walk × 8 rounds. 5-min cool-down. Keep the jog conversational.", intensity: "Moderate-High" },
+          2: { type: "peloton", title: "Peloton Climb Ride", icon: "🚴", duration: 30, details: "30-min ride with mixed climbs. Higher resistance builds leg strength that protects knees when running.", intensity: "Moderate" },
+          3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 25, details: "Office day — 25-min lunch walk. Take the long route back.", intensity: "Low" },
+          4: { type: "bodyweight", title: "Bodyweight Progression", icon: "💪", duration: 30, details: "Push-ups 3x10 · Bodyweight squats 3x15 · Walking lunges 3x8/leg · Plank hold 3x30sec · Bird dog 3x10/side.", intensity: "Moderate" },
+          5: { type: "intervals", title: "Walk-Run Intervals", icon: "🏃", duration: 32, details: "5-min warm-up. Then: 90-sec jog / 90-sec walk × 7 rounds. 5-min cool-down. You should still be able to talk while jogging.", intensity: "Moderate-High" },
+          6: { type: "peloton", title: "Long Peloton Ride", icon: "🚴", duration: 45, details: "45-min endurance ride. Steady pace. This is your aerobic base builder.", intensity: "Moderate" }
+        };
+        return schedule[dayOfWeek];
+      }
+
+      // PHASE 2b: Week 6 — Bridge to longer runs
+      if (week === 6) {
+        const schedule = {
+          0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 35, details: "35-min easy walk. Recovery is where adaptation happens.", intensity: "Low" },
+          1: { type: "intervals", title: "Run Intervals", icon: "🏃", duration: 32, details: "5-min warm-up. Then: 2-min jog / 90-sec walk × 6 rounds. 5-min cool-down.", intensity: "High" },
+          2: { type: "peloton", title: "Peloton Power", icon: "🚴", duration: 35, details: "35-min power zone ride. Push harder than last week.", intensity: "Moderate-High" },
+          3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 25, details: "Office day — protect the habit with your lunch walk.", intensity: "Low" },
+          4: { type: "bodyweight", title: "Strength Circuit", icon: "💪", duration: 30, details: "Push-ups 3x12 · Split squats 3x10/leg · Glute bridges 3x12 · Plank hold 3x40sec · Mountain climbers 3x20.", intensity: "Moderate-High" },
+          5: { type: "intervals", title: "Run Intervals", icon: "🏃", duration: 34, details: "5-min warm-up. Then: 3-min jog / 90-sec walk × 5 rounds. 5-min cool-down.", intensity: "High" },
+          6: { type: "peloton", title: "Long Ride", icon: "🚴", duration: 45, details: "45-min endurance ride. Keep the cadence up.", intensity: "Moderate" }
+        };
+        return schedule[dayOfWeek];
+      }
+
+      // PHASE 3: Weeks 7-9 — Longer run intervals (C25K Weeks 4-6)
+      if (week <= 9) {
+        const schedule = {
+          0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 30, details: "30-min easy walk. Enjoy being outside. Your body is transforming — let it recover.", intensity: "Low" },
+          1: { type: "intervals", title: "Run Intervals", icon: "🏃", duration: 30, details: "5-min warm-up. Then: 3-min jog / 90-sec walk × 5 rounds. 5-min cool-down. You're becoming a runner.", intensity: "High" },
+          2: { type: "peloton", title: "Peloton HIIT Ride", icon: "🚴", duration: 30, details: "30-min HIIT ride. Intervals of high-intensity effort with recovery. Search 'Beginner HIIT'.", intensity: "High" },
+          3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 25, details: "Office day — 25-min walk. Consistency over perfection.", intensity: "Low" },
+          4: { type: "bodyweight", title: "Strength Circuit", icon: "💪", duration: 30, details: "Push-ups 3x10 · Walking lunges 3x10/leg · Glute bridges 3x12 · Plank hold 3x30sec · Mountain climbers 3x20.", intensity: "Moderate-High" },
+          5: { type: "intervals", title: "Run Intervals", icon: "🏃", duration: 32, details: "5-min warm-up. Then: 5-min jog / 2-min walk × 4 rounds. 5-min cool-down. Pace is conversational jog.", intensity: "High" },
+          6: { type: "peloton", title: "Long Endurance Ride", icon: "🚴", duration: 45, details: "45-min endurance ride. Steady pace. This builds your metabolic engine.", intensity: "Moderate" }
+        };
+        return schedule[dayOfWeek];
+      }
+
+      // PHASE 4: Weeks 10-12 — Continuous running (C25K Weeks 7-9)
+      if (week <= 12) {
+        const schedule = {
+          0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 35, details: "35-min walk. Enjoy the movement. You've come a long way.", intensity: "Low" },
+          1: { type: "run", title: "Continuous Run", icon: "🏃", duration: 30, details: "5-min warm-up walk. Then run continuously for 20 min at a conversational pace. 5-min cool-down. No shame in slowing down.", intensity: "High" },
+          2: { type: "peloton", title: "Peloton Power Ride", icon: "🚴", duration: 30, details: "30-min power zone or interval ride. You have the cardio base now to push harder.", intensity: "High" },
+          3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 25, details: "Office day — active recovery walk. Stay consistent.", intensity: "Low" },
+          4: { type: "bodyweight", title: "Full-Body Strength", icon: "💪", duration: 30, details: "Push-ups 3x12 · Reverse lunges 3x10/leg · Single-leg glute bridges 3x8 · Side plank 3x20sec/side · Burpees 3x8.", intensity: "High" },
+          5: { type: "run", title: "Continuous Run", icon: "🏃", duration: 32, details: "5-min warm-up. 25-min continuous run. 5-min cool-down. By end of week 12, this should feel comfortable.", intensity: "High" },
+          6: { type: "peloton", title: "Long Ride", icon: "🚴", duration: 45, details: "45-min ride. Challenge yourself with a themed or scenic ride.", intensity: "Moderate-High" }
+        };
+        return schedule[dayOfWeek];
+      }
+
+      // PHASE 5: Weeks 13+ — Maintenance / 5K+ / Ongoing
+      const schedule = {
+        0: { type: "active_recovery", title: "Recovery Walk", icon: "🚶", duration: 40, details: "40-min walk. Active recovery. Listen to your body.", intensity: "Low" },
+        1: { type: "run", title: "5K Run", icon: "🏃", duration: 35, details: "5-min warm-up. 30-min continuous run (≈3 miles / 5K). Track your time, see improvement over weeks.", intensity: "High" },
+        2: { type: "peloton", title: "Peloton Power Zone", icon: "🚴", duration: 45, details: "45-min power zone ride. Build sustained cycling fitness.", intensity: "High" },
+        3: { type: "walk_office", title: "Lunch Break Walk", icon: "🚶", duration: 30, details: "Office day — 30-min walk. The habit is who you are now.", intensity: "Low" },
+        4: { type: "bodyweight", title: "Advanced Circuit", icon: "💪", duration: 35, details: "Decline push-ups 3x10 · Jump squats 3x10 · Split squats 3x10/leg · Plank variations 3x45sec · Burpees 3x10.", intensity: "High" },
+        5: { type: "run", title: "Long Run", icon: "🏃", duration: 45, details: "5-min warm-up. 35-40-min continuous run. Slowly extend the distance. 10K is your next goal.", intensity: "High" },
+        6: { type: "peloton", title: "Long Endurance Ride", icon: "🚴", duration: 60, details: "60-min endurance ride. Deep base-building. Treat it like a meditation on wheels.", intensity: "Moderate" }
+      };
+      return schedule[dayOfWeek];
+    };
+
+    // ═════════════════════════════════════════════════════════
+    // FASTING PLAN ENGINE
+    // Research-based: 16:8 TRE + Gary Brecka 72-hour water fast
+    // Ramp: 12:12 → 14:10 → 16:8, with periodic extended fasts
+    // ═════════════════════════════════════════════════════════
+    const getFastingPlanForDay = (dayNumber) => {
+      const week = Math.floor(dayNumber / 7) + 1;
+      const dayOfWeek = new Date().getDay();
+
+      // Extended fast schedule:
+      // Week 4: first 48-hour fast (end of phase 1)
+      // Then every 4 weeks: alternate 48h / 72h
+      // Fast starts Friday evening, ends Sunday or Monday morning
+      const isExtendedFastWeek = week >= 4 && (week - 4) % 4 === 0;
+      const is72Hour = week >= 8 && (week - 8) % 8 === 0; // 72h every 8 weeks after week 8
+
+      // Friday = start extended fast evening
+      if (isExtendedFastWeek && dayOfWeek === 5) {
+        return {
+          type: "extended_start",
+          title: is72Hour ? "72-Hour Fast Begins Tonight" : "48-Hour Fast Begins Tonight",
+          icon: "🔋",
+          eatWindow: "11:00 AM – 6:00 PM",
+          fastDuration: is72Hour ? "72 hours" : "48 hours",
+          tips: "Last meal by 6 PM. Eat protein-rich + some healthy fats for satiety. Stock up on sea salt, magnesium, and sparkling water. Black coffee is allowed during the fast. You've got this.",
+          phase: is72Hour ? "Extended 72-Hour" : "Extended 48-Hour"
+        };
+      }
+      if (isExtendedFastWeek && dayOfWeek === 6) {
+        return {
+          type: "extended_mid",
+          title: is72Hour ? "Day 1 of 72-Hour Fast" : "Day 1 of 48-Hour Fast",
+          icon: "💧",
+          eatWindow: "WATER ONLY",
+          fastDuration: "Continue",
+          tips: "Hours 12-24: Hunger waves come and go. Drink water with a pinch of sea salt. Walk lightly. Hours 24-48: Autophagy kicks in. Expect mental clarity. Stay busy — out of the kitchen.",
+          phase: is72Hour ? "Extended 72-Hour" : "Extended 48-Hour"
+        };
+      }
+      if (isExtendedFastWeek && dayOfWeek === 0) {
+        return {
+          type: is72Hour ? "extended_mid" : "extended_end",
+          title: is72Hour ? "Day 2 of 72-Hour Fast" : "Break Your 48-Hour Fast",
+          icon: is72Hour ? "💧" : "🥣",
+          eatWindow: is72Hour ? "WATER ONLY" : "Break fast at 6 PM with bone broth, then small meal",
+          fastDuration: is72Hour ? "Continue" : "Complete!",
+          tips: is72Hour ? "Hours 48-72: Stem cell activity increases, per Brecka's protocol. Deep autophagy. Keep electrolytes up. Tomorrow you break the fast." : "BREAK FAST GENTLY: Start with bone broth or warm vegetable broth. Wait 1 hour. Then a small protein + vegetable meal. Do NOT feast — it will make you sick.",
+          phase: is72Hour ? "Extended 72-Hour" : "Extended 48-Hour"
+        };
+      }
+      if (is72Hour && dayOfWeek === 1) {
+        return {
+          type: "extended_end",
+          title: "Break Your 72-Hour Fast",
+          icon: "🥣",
+          eatWindow: "Break fast at noon with bone broth, then small meal",
+          fastDuration: "Complete!",
+          tips: "BREAK THE FAST SLOWLY: Bone broth first, wait 1-2 hours. Then small meal of protein + cooked vegetables. Skip raw vegetables and fatty foods today. Your hunger hormones will be recalibrated for 1-2 weeks.",
+          phase: "Extended 72-Hour"
+        };
+      }
+
+      // PHASE 1: Week 1 — Start at 14:10 (accelerated from 12:12)
+      if (week === 1) {
+        return {
+          type: "14_10",
+          title: "14:10 Fasting (Accelerated Start)",
+          icon: "🌱",
+          eatWindow: "10:00 AM – 8:00 PM",
+          fastDuration: "14 hours",
+          tips: "Stop eating at 8 PM, resume at 10 AM. Most of the fast is overnight. Fat-burning metabolic switch activates at hour 12-14. Black coffee during the fast is allowed and helps suppress appetite.",
+          phase: "Ramp-Up Week 1"
+        };
+      }
+
+      // PHASE 2: Week 2 — 15:9 bridge
+      if (week === 2) {
+        return {
+          type: "15_9",
+          title: "15:9 Fasting",
+          icon: "⚡",
+          eatWindow: "10:30 AM – 7:30 PM",
+          fastDuration: "15 hours",
+          tips: "Push first meal to 10:30 AM, dinner by 7:30 PM. You're deep into fat-burning mode. Sparkling water with sea salt during the fast kills cravings.",
+          phase: "Ramp-Up Week 2"
+        };
+      }
+
+      // PHASE 3: Week 3+ — 16:8 (the main protocol)
+      // Optimal window based on research: 11 AM - 7 PM (highest 30-day adherence rate)
+      return {
+        type: "16_8",
+        title: "16:8 Intermittent Fasting",
+        icon: "🎯",
+        eatWindow: "11:00 AM – 7:00 PM",
+        fastDuration: "16 hours",
+        tips: "Break fast with 30-40g protein (eggs, Greek yogurt, meat). Stop eating by 7 PM. Sparkling water, black coffee, plain tea during fast window — these do NOT break the fast.",
+        phase: "Default Protocol"
+      };
+    };
+
+    const daysSinceStart = (startDate) => {
+      if (!startDate) return 0;
+      const start = new Date(startDate + "T12:00:00");
+      const now = new Date();
+      return Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    };
+
+    const WeightChart = ({ data }) => {
+      if (!data || data.length < 2) return null;
+      const W = 340, HT = 170, PX = 34, PY = 20;
+      const weights = data.map((d) => d.weight);
+      const minW = Math.min.apply(null, weights) - 3;
+      const maxW = Math.max.apply(null, weights) + 3;
+      const range = maxW - minW || 1;
+      const xStep = (W - PX*2) / Math.max(1, data.length - 1);
+      const pts = data.map((d, i) => ({
+        x: PX + i * xStep,
+        y: HT - PY - ((d.weight - minW) / range) * (HT - PY*2),
+        weight: d.weight, date: d.date
+      }));
+      const path = pts.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + " " + p.y.toFixed(1)).join(" ");
+      const gridRatios = [0, 0.25, 0.5, 0.75, 1];
+      return (
+        <svg viewBox={"0 0 " + W + " " + HT} style={{ width: "100%", height: HT }}>
+          {gridRatios.map((r, i) => { const y = PY + r * (HT - PY*2); return <line key={i} x1={PX} y1={y} x2={W - PX} y2={y} stroke={BDR} strokeDasharray="3 3" strokeWidth="1" />; })}
+          {gridRatios.map((r, i) => { const val = (maxW - r * range).toFixed(0); const y = PY + r * (HT - PY*2); return <text key={"t"+i} x={PX - 6} y={y + 3} fill={MUT} fontSize="9" textAnchor="end">{val}</text>; })}
+          <path d={path} fill="none" stroke={A} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3" fill={A} />)}
+        </svg>
+      );
+    };
+
+    const H = (props) => {
+      const base = { fontFamily: "'Bebas Neue',sans-serif", fontSize: props.size || 24, color: props.color || "#fff", marginBottom: props.mb || 0, marginTop: props.mt || 0, letterSpacing: 1, lineHeight: 1.05 };
+      return <div style={Object.assign(base, props.style || {})}>{props.children}</div>;
+    };
+
+    const Card = (props) => {
+      const base = { background: CARD, border: "1px solid " + BDR, borderRadius: 16, padding: 18 };
+      return <div onClick={props.onClick} style={Object.assign(base, props.style || {})}>{props.children}</div>;
+    };
+
+    const Btn = (props) => {
+      const variants = { primary: { background: A, color: "#000" }, ghost: { background: C2, color: SOFT, border: "1px solid " + BDR } };
+      const v = variants[props.variant || "primary"];
+      const base = { padding: "13px 20px", borderRadius: 12, cursor: props.disabled ? "default" : "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: props.disabled ? 0.4 : 1, width: props.full ? "100%" : undefined };
+      return <div onClick={!props.disabled ? props.onClick : undefined} style={Object.assign(base, v, props.style || {})}>{props.children}</div>;
+    };
+
+    const Slider = (props) => (
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: SOFT, fontWeight: 500 }}>{props.label}</span>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: props.color || A, lineHeight: 1 }}>{props.value}</span>
+        </div>
+        <input type="range" min={props.min || 1} max={props.max || 10} value={props.value} onChange={(e) => props.onChange(+e.target.value)} />
+        {(props.leftLabel || props.rightLabel) && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span style={{ fontSize: 10, color: MUT }}>{props.leftLabel}</span><span style={{ fontSize: 10, color: MUT }}>{props.rightLabel}</span></div>}
+      </div>
+    );
+
+    const EmojiRow = (props) => (
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>{props.label}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {props.options.map((o, i) => (
+            <div key={i} onClick={() => props.onChange(i+1)} style={{ flex: 1, background: props.value === i+1 ? "rgba(0,232,122,0.12)" : C2, border: "1px solid " + (props.value === i+1 ? A : BDR), borderRadius: 10, padding: "10px 2px", textAlign: "center", cursor: "pointer" }}>
+              <div style={{ fontSize: 20 }}>{o.e}</div>
+              <div style={{ fontSize: 9, color: props.value === i+1 ? A : MUT, marginTop: 3, lineHeight: 1.2 }}>{o.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    const Chips = (props) => {
+      const val = props.value || (props.multi ? [] : null);
+      return (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>{props.label}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {props.options.map((o) => {
+              const active = props.multi ? val.includes(o) : val === o;
+              const handleClick = () => {
+                if (props.multi) props.onChange(active ? val.filter((x) => x !== o) : val.concat(o));
+                else props.onChange(o);
+              };
+              return <div key={o} onClick={handleClick} style={{ padding: "8px 14px", borderRadius: 20, border: "1px solid " + (active ? A : BDR), background: active ? "rgba(0,232,122,0.12)" : C2, color: active ? A : SOFT, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>{o}</div>;
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    const Stepper = (props) => {
+      const lo = props.min || 0, hi = props.max || 15;
+      return (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>{props.label}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, background: C2, border: "1px solid " + BDR, borderRadius: 12, padding: "8px 16px" }}>
+            <div onClick={() => props.onChange(Math.max(lo, props.value-1))} style={{ width: 36, height: 36, borderRadius: 8, background: BDR, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 22, color: SOFT, userSelect: "none" }}>−</div>
+            <div style={{ flex: 1, textAlign: "center", fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: A, lineHeight: 1 }}>{props.value}{props.value === hi ? "+" : " "}</div>
+            <div onClick={() => props.onChange(Math.min(hi, props.value+1))} style={{ width: 36, height: 36, borderRadius: 8, background: BDR, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 22, color: SOFT, userSelect: "none" }}>+</div>
+          </div>
+        </div>
+      );
+    };
+
+    const Divider = (props) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+        <div style={{ flex: 1, height: 1, background: BDR }} />
+        {props.label && <span style={{ fontSize: 11, color: MUT, textTransform: "uppercase", letterSpacing: 2, whiteSpace: "nowrap" }}>{props.label}</span>}
+        <div style={{ flex: 1, height: 1, background: BDR }} />
+      </div>
+    );
+
+    const ProfileSetup = (props) => {
+      const [form, setForm] = useState({ name: "", startWeight: "303", goalWeight: "200", heightFt: "5", heightIn: "11" });
+      const f = (k, v) => setForm((p) => { const n = Object.assign({}, p); n[k] = v; return n; });
+      const currentBMI = bmi(+form.startWeight, form.heightFt, form.heightIn);
+      const goalBMI = bmi(+form.goalWeight, form.heightFt, form.heightIn);
+      const valid = form.name.trim() && form.startWeight && form.goalWeight && form.heightFt;
+      const onStart = () => {
+        props.onSave({ name: form.name.trim(), startWeight: +form.startWeight, currentWeight: +form.startWeight, goalWeight: +form.goalWeight, heightFt: form.heightFt, heightIn: form.heightIn, startDate: localToday() });
+      };
+      return (
+        <div style={{ minHeight: "100vh", background: BG, overflowY: "auto" }}>
+          <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 20px 100px" }}>
+            <div style={{ textAlign: "center", marginBottom: 36 }}>
+              <div style={{ fontSize: 11, letterSpacing: 4, color: A, textTransform: "uppercase", marginBottom: 12 }}>Welcome to</div>
+              <H size={58} color="#fff" style={{ lineHeight: 0.95 }}>GET FIT.<br/><span style={{ color: A }}>LIVE LONGER.</span></H>
+              <p style={{ color: SOFT, fontSize: 14, marginTop: 16, lineHeight: 1.7 }}>Your personal transformation tracker. Daily check-ins, sleep quality, and weight progress — all in one place.</p>
+            </div>
+            <Card style={{ marginBottom: 16 }}>
+              <H size={20} color={A} mb={20}>YOUR PROFILE</H>
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, color: SOFT, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Your Name</div>
+                <input type="text" placeholder="e.g. John" value={form.name} onChange={(e) => f("name", e.target.value)} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
+                <div><div style={{ fontSize: 12, color: SOFT, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Height (ft)</div><input type="number" placeholder="5" value={form.heightFt} onChange={(e) => f("heightFt", e.target.value)} /></div>
+                <div><div style={{ fontSize: 12, color: SOFT, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Height (in)</div><input type="number" placeholder="11" value={form.heightIn} onChange={(e) => f("heightIn", e.target.value)} /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                <div><div style={{ fontSize: 12, color: SOFT, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Start Weight (lbs)</div><input type="number" placeholder="303" value={form.startWeight} onChange={(e) => f("startWeight", e.target.value)} /></div>
+                <div><div style={{ fontSize: 12, color: SOFT, marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Goal Weight (lbs)</div><input type="number" placeholder="200" value={form.goalWeight} onChange={(e) => f("goalWeight", e.target.value)} /></div>
+              </div>
+              {currentBMI && (
+                <div style={{ background: C2, border: "1px solid " + BDR, borderRadius: 12, padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Starting BMI</div>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: bmiColor(currentBMI), lineHeight: 1 }}>{currentBMI}</div>
+                    <div style={{ fontSize: 11, color: bmiColor(currentBMI), marginTop: 4 }}>{bmiLabel(currentBMI)}</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Goal BMI</div>
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: bmiColor(goalBMI), lineHeight: 1 }}>{goalBMI || "--"}</div>
+                    <div style={{ fontSize: 11, color: bmiColor(goalBMI), marginTop: 4 }}>{bmiLabel(goalBMI)}</div>
+                  </div>
+                </div>
+              )}
+            </Card>
+            <Btn full disabled={!valid} onClick={onStart}>🚀 START MY JOURNEY</Btn>
+          </div>
+        </div>
+      );
+    };
+
+    const AppShell = (props) => {
+      const nav = [
+        { key: "home", icon: "🏠", label: "Home" },
+        { key: "morning", icon: "🌅", label: "AM", badge: !props.morningDone },
+        { key: "evening", icon: "🌙", label: "PM", badge: !props.eveningDone },
+        { key: "exercise", icon: "💪", label: "Exercise" },
+        { key: "fasting", icon: "⏱", label: "Fasting" },
+        { key: "history", icon: "📊", label: "History" }
+      ];
+      return (
+        <div style={{ maxWidth: 420, margin: "0 auto", height: "100vh", background: BG, display: "flex", flexDirection: "column", position: "relative" }}>
+          <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 82 }}>{props.children}</div>
+          <div style={{ flexShrink: 0, background: "rgba(10,10,10,0.97)", backdropFilter: "blur(20px)", borderTop: "1px solid " + BDR, display: "flex", zIndex: 100 }}>
+            {nav.map((n) => (
+              <div key={n.key} onClick={() => props.setTab(n.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "10px 0 14px", cursor: "pointer", position: "relative" }}>
+                {n.badge && <div style={{ position: "absolute", top: 8, right: "calc(50% - 16px)", width: 7, height: 7, borderRadius: "50%", background: A }} />}
+                <div style={{ fontSize: 20, marginBottom: 2 }}>{n.icon}</div>
+                <div style={{ fontSize: 10, color: props.tab === n.key ? A : MUT, fontWeight: props.tab === n.key ? 600 : 400, letterSpacing: 0.5 }}>{n.label}</div>
+                {props.tab === n.key && <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: 24, height: 2, background: A, borderRadius: 1 }} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    const HomeScreen = (props) => {
+      const { profile, checkins, morningDone, eveningDone, setTab, addWeight } = props;
+      const [showModal, setShowModal] = useState(false);
+      const [newWeight, setNewWeight] = useState(String(profile.currentWeight || ""));
+      const trends = get7DayTrends(checkins);
+      const streak = calcStreak(checkins);
+      const pct = Math.min(100, Math.max(0, ((profile.startWeight - profile.currentWeight) / (profile.startWeight - profile.goalWeight)) * 100));
+      const lost = +(profile.startWeight - profile.currentWeight).toFixed(1);
+      const toGo = +(profile.currentWeight - profile.goalWeight).toFixed(1);
+      const currentBMI = bmi(profile.currentWeight, profile.heightFt, profile.heightIn);
+      const milestones = [5, 10, 25, 50, 75, 100];
+      let nextMs = 100;
+      for (let i = 0; i < milestones.length; i++) { if (milestones[i] > lost) { nextMs = milestones[i]; break; } }
+      const bothDone = morningDone && eveningDone;
+      const trendCards = [
+        { label: "Avg Sleep Score", val: trends.sleepAvg, icon: "😴", good: (v) => +v >= 7 },
+        { label: "Avg Stress", val: trends.stressAvg, icon: "🧠", good: (v) => +v <= 4 },
+        { label: "Avg Tiredness", val: trends.tirednessAvg, icon: "⚡", good: (v) => +v <= 4 },
+        { label: "Active Days", val: trends.activeDays + "/7", icon: "🏃", good: (v) => parseInt(v) >= 4 }
+      ];
+      const checkinItems = [
+        { key: "morning", done: morningDone, icon: "🌅", label: "Morning Check-In", sub: "Sleep quality · Energy · Fasting" },
+        { key: "evening", done: eveningDone, icon: "🌙", label: "Evening Check-In", sub: "Stress · Activity · Cravings · Mood" }
+      ];
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 11, color: MUT, letterSpacing: 3, textTransform: "uppercase" }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
+            <H size={36} color="#fff" mt={4}>{greet()}, <span style={{ color: A }}>{profile.name.split(" ")[0]}</span></H>
+          </div>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>Current Weight</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: "#fff", lineHeight: 1 }}>{profile.currentWeight}</span>
+                  <span style={{ fontSize: 14, color: SOFT }}>lbs</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 2, marginBottom: 4 }}>BMI</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: bmiColor(currentBMI) }}>{currentBMI || "--"}</div>
+                <div style={{ fontSize: 10, color: bmiColor(currentBMI) }}>{bmiLabel(currentBMI)}</div>
+              </div>
+            </div>
+            <div style={{ background: BDR, borderRadius: 99, height: 8, marginBottom: 10, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 99, background: "linear-gradient(90deg," + A + ",#00ffaa)", width: pct + "%", transition: "width 0.6s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 12 }}>
+              <span style={{ color: MUT }}>Start: {profile.startWeight}</span>
+              <span style={{ color: A, fontWeight: 600 }}>↓ {lost} lbs lost</span>
+              <span style={{ color: MUT }}>Goal: {profile.goalWeight}</span>
+            </div>
+            {lost < nextMs && <div style={{ background: "rgba(0,232,122,0.06)", border: "1px solid rgba(0,232,122,0.15)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: A, marginBottom: 12 }}>🎯 Next milestone: <strong>{nextMs} lbs lost</strong> — only {(nextMs - lost).toFixed(1)} lbs away!</div>}
+            <Btn variant="ghost" full onClick={() => setShowModal(true)} style={{ fontSize: 13, padding: "10px 16px" }}>⚖️ Log Today's Weight</Btn>
+          </Card>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <Card style={{ textAlign: "center", padding: 16 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: A, lineHeight: 1 }}>{streak}</div>
+              <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 6 }}>Day Streak 🔥</div>
+            </Card>
+            <Card style={{ textAlign: "center", padding: 16 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: SOFT, lineHeight: 1 }}>{toGo}</div>
+              <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 6 }}>lbs to goal</div>
+            </Card>
+          </div>
+
+          {(() => {
+            const day = daysSinceStart(profile.startDate);
+            const workout = getWorkoutForDay(day);
+            const fasting = getFastingPlanForDay(day);
+            const weekNum = Math.floor(day / 7) + 1;
+            const isExtended = fasting.type && fasting.type.indexOf("extended") === 0;
+            return (
+              <React.Fragment>
+                <Card style={{ marginBottom: 14, background: "linear-gradient(135deg, #141414 0%, #1a1a1a 100%)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <H size={18} color={A}>TODAY'S EXERCISE</H>
+                    <span style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5 }}>Week {weekNum} · Day {(day % 7) + 1}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14, background: C2, border: "1px solid " + BDR, borderRadius: 12, padding: 16 }}>
+                    <div style={{ fontSize: 38, lineHeight: 1, flexShrink: 0 }}>{workout.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: "#fff", marginBottom: 4 }}>{workout.title}</div>
+                      <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, color: A, fontWeight: 600 }}>⏱ {workout.duration} min</span>
+                        <span style={{ fontSize: 11, color: MUT }}>• {workout.intensity} intensity</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: SOFT, lineHeight: 1.55 }}>{workout.details}</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card style={{ marginBottom: 14, background: isExtended ? "linear-gradient(135deg, #1a1410 0%, #141414 100%)" : CARD, border: isExtended ? "1px solid rgba(255,215,0,0.3)" : "1px solid " + BDR }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <H size={18} color={isExtended ? "#FFD700" : A}>TODAY'S FASTING PLAN</H>
+                    <span style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5 }}>{fasting.phase}</span>
+                  </div>
+                  <div style={{ background: C2, border: "1px solid " + BDR, borderRadius: 12, padding: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                      <div style={{ fontSize: 32, flexShrink: 0 }}>{fasting.icon}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: "#fff" }}>{fasting.title}</div>
+                        <div style={{ fontSize: 11, color: isExtended ? "#FFD700" : A, marginTop: 2, fontWeight: 600 }}>Fast: {fasting.fastDuration}</div>
+                      </div>
+                    </div>
+                    <div style={{ background: BG, border: "1px solid " + BDR, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>🍽 Eating Window</div>
+                      <div style={{ fontSize: 14, color: "#fff", fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{fasting.eatWindow}</div>
+                    </div>
+                    <p style={{ fontSize: 12, color: SOFT, lineHeight: 1.55 }}>{fasting.tips}</p>
+                  </div>
+                  {isExtended && (
+                    <div style={{ background: "rgba(255,215,0,0.05)", border: "1px solid rgba(255,215,0,0.2)", borderRadius: 8, padding: "10px 12px", marginTop: 10, fontSize: 11, color: "#FFD700", lineHeight: 1.5 }}>
+                      ⚠️ Extended fasting is powerful medicine. Confirm doctor clearance. Keep electrolytes (sodium, potassium, magnesium) up throughout. Stop if you feel seriously unwell.
+                    </div>
+                  )}
+                </Card>
+              </React.Fragment>
+            );
+          })()}
+          <Card style={{ marginBottom: 14 }}>
+            <H size={18} color={A} mb={16}>TODAY'S CHECK-INS</H>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {checkinItems.map((item) => (
+                <div key={item.key} onClick={() => setTab(item.key)} style={{ display: "flex", alignItems: "center", gap: 12, background: C2, border: "1px solid " + (item.done ? A : BDR), borderRadius: 12, padding: 14, cursor: "pointer" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: item.done ? "rgba(0,232,122,0.15)" : BDR, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{item.done ? "✅" : item.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: item.done ? A : "#fff" }}>{item.label}</div>
+                    <div style={{ fontSize: 12, color: MUT, marginTop: 2 }}>{item.done ? "Completed · Tap to review" : item.sub}</div>
+                  </div>
+                  <div style={{ fontSize: 18, color: MUT }}>›</div>
+                </div>
+              ))}
+            </div>
+            {bothDone && <div style={{ marginTop: 14, textAlign: "center", padding: 16, background: "rgba(0,232,122,0.08)", border: "1px solid rgba(0,232,122,0.2)", borderRadius: 12 }}><div style={{ fontSize: 28 }}>🎉</div><div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: A, marginTop: 6 }}>BOTH CHECK-INS DONE!</div><div style={{ fontSize: 12, color: MUT, marginTop: 4 }}>Streak maintained · Keep going</div></div>}
+          </Card>
+          <Card>
+            <H size={18} color={A} mb={16}>7-DAY TRENDS</H>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {trendCards.map((t, i) => {
+                const isGood = t.val !== "--" && t.good(t.val);
+                const col = t.val === "--" ? MUT : isGood ? A : "#FFD700";
+                return <div key={i} style={{ background: C2, border: "1px solid " + BDR, borderRadius: 12, padding: 14, textAlign: "center" }}><div style={{ fontSize: 24, marginBottom: 6 }}>{t.icon}</div><div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: col, lineHeight: 1 }}>{t.val}</div><div style={{ fontSize: 10, color: MUT, marginTop: 5, lineHeight: 1.4 }}>{t.label}</div></div>;
+              })}
+            </div>
+          </Card>
+          {showModal && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }} onClick={() => setShowModal(false)}>
+              <div style={{ background: CARD, border: "1px solid " + BDR, borderRadius: "20px 20px 0 0", padding: 28, width: "100%", maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+                <H size={26} color={A} mb={6}>LOG YOUR WEIGHT</H>
+                <p style={{ fontSize: 13, color: MUT, marginBottom: 18 }}>Best logged first thing in the morning, same conditions each time.</p>
+                <input type="number" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder="Enter weight in lbs" style={{ fontSize: 28, textAlign: "center", padding: 16, marginBottom: 16 }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Btn variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn>
+                  <Btn disabled={!newWeight} onClick={() => { if (newWeight) { addWeight(newWeight); setShowModal(false); } }}>Save ✓</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const MorningCheckin = (props) => {
+      const defaults = { sleepScore: 7, timesWoken: 2, sleepNotes: "", fastingStatus: null, energyLevel: null, morningWeight: "" };
+      const [form, setForm] = useState(props.existing || defaults);
+      const f = (k, v) => setForm((p) => { const n = Object.assign({}, p); n[k] = v; return n; });
+      const canSave = form.fastingStatus && form.energyLevel;
+      const sleepColor = form.sleepScore >= 7 ? A : form.sleepScore >= 5 ? "#FFD700" : RED;
+      const energyOptions = [{ e: "😴", l: "Wiped" }, { e: "😕", l: "Tired" }, { e: "😐", l: "OK" }, { e: "🙂", l: "Good" }, { e: "⚡", l: "Great" }];
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+            <div onClick={props.onBack} style={{ width: 36, height: 36, borderRadius: "50%", background: C2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, color: SOFT }}>‹</div>
+            <div><div style={{ fontSize: 10, color: MUT, letterSpacing: 3, textTransform: "uppercase" }}>Daily Log</div><H size={28}>MORNING CHECK-IN 🌅</H></div>
+          </div>
+          <Card style={{ marginBottom: 14 }}>
+            <H size={16} color={A} mb={18}>LAST NIGHT'S SLEEP</H>
+            <Slider label="Sleep Quality Score" value={form.sleepScore} onChange={(v) => f("sleepScore", v)} leftLabel="😩 Terrible" rightLabel="😴 Perfect" color={sleepColor} />
+            <Stepper label="Times You Woke Up During the Night" value={form.timesWoken} onChange={(v) => f("timesWoken", v)} />
+            <div><div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>Sleep Notes <span style={{ color: MUT, fontWeight: 400 }}>(optional)</span></div><textarea rows={2} placeholder="e.g. restless, vivid dreams, snoring worse..." value={form.sleepNotes} onChange={(e) => f("sleepNotes", e.target.value)} /></div>
+          </Card>
+          <Card style={{ marginBottom: 14 }}>
+            <H size={16} color={A} mb={18}>THIS MORNING</H>
+            <EmojiRow label="Morning Energy Level" value={form.energyLevel} onChange={(v) => f("energyLevel", v)} options={energyOptions} />
+            <Chips label="Fasting Window — Did You Complete It?" value={form.fastingStatus} onChange={(v) => f("fastingStatus", v)} multi={false} options={["✅ Yes, nailed it", "⚡ Partial", "❌ No"]} />
+            <Divider label="optional" />
+            <div><div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>Morning Weight (lbs)</div><input type="number" placeholder="Log your weight to auto-sync..." value={form.morningWeight} onChange={(e) => f("morningWeight", e.target.value)} /></div>
+          </Card>
+          <Btn full disabled={!canSave} onClick={() => props.onSave(Object.assign({}, form, { timestamp: new Date().toISOString() }))}>SAVE MORNING CHECK-IN ✓</Btn>
+          {!canSave && <p style={{ fontSize: 12, color: MUT, textAlign: "center", marginTop: 10 }}>Complete energy level and fasting status to save</p>}
+        </div>
+      );
+    };
+
+    const EveningCheckin = (props) => {
+      const defaults = { stressLevel: 5, activityLevel: null, tiredness: 5, exerciseDone: [], cravings: null, mood: null, dayNotes: "" };
+      const [form, setForm] = useState(props.existing || defaults);
+      const f = (k, v) => setForm((p) => { const n = Object.assign({}, p); n[k] = v; return n; });
+      const canSave = form.activityLevel && form.cravings && form.mood;
+      const stressColor = form.stressLevel <= 4 ? A : form.stressLevel <= 7 ? "#FFD700" : RED;
+      const tiredColor = form.tiredness <= 4 ? A : form.tiredness <= 7 ? "#FFD700" : RED;
+      const moodOptions = [{ e: "😞", l: "Rough" }, { e: "😕", l: "Meh" }, { e: "😐", l: "Okay" }, { e: "🙂", l: "Good" }, { e: "😁", l: "Great" }];
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+            <div onClick={props.onBack} style={{ width: 36, height: 36, borderRadius: "50%", background: C2, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20, color: SOFT }}>‹</div>
+            <div><div style={{ fontSize: 10, color: MUT, letterSpacing: 3, textTransform: "uppercase" }}>Daily Log</div><H size={28}>EVENING CHECK-IN 🌙</H></div>
+          </div>
+          <Card style={{ marginBottom: 14 }}>
+            <H size={16} color={A} mb={18}>TODAY'S STRESS & WELLBEING</H>
+            <Slider label="Stress Level Today" value={form.stressLevel} onChange={(v) => f("stressLevel", v)} leftLabel="😌 Totally calm" rightLabel="😤 Overwhelmed" color={stressColor} />
+            <Slider label="How Tired Did You Feel Today?" value={form.tiredness} onChange={(v) => f("tiredness", v)} leftLabel="⚡ Energized" rightLabel="💀 Exhausted" color={tiredColor} />
+            <EmojiRow label="Overall Mood Today" value={form.mood} onChange={(v) => f("mood", v)} options={moodOptions} />
+          </Card>
+          <Card style={{ marginBottom: 14 }}>
+            <H size={16} color={A} mb={18}>MOVEMENT & ACTIVITY</H>
+            <Chips label="Overall Activity Level Today" value={form.activityLevel} onChange={(v) => f("activityLevel", v)} multi={false} options={["Sedentary", "Light", "Moderate", "Active", "Very Active"]} />
+            <Chips label="Exercise Completed (select all)" value={form.exerciseDone} onChange={(v) => f("exerciseDone", v)} multi={true} options={["🚶 Walk", "🏃 Run", "🚴 Peloton", "💪 Bodyweight", "🏋️ Other"]} />
+          </Card>
+          <Card style={{ marginBottom: 14 }}>
+            <H size={16} color={A} mb={18}>CRAVINGS & NOTES</H>
+            <Chips label="Sugar / Soda Cravings Today" value={form.cravings} onChange={(v) => f("cravings", v)} multi={false} options={["None 🙌", "Mild 😐", "Strong 😬", "Gave In 😔"]} />
+            <Divider label="optional" />
+            <div><div style={{ fontSize: 13, color: SOFT, fontWeight: 500, marginBottom: 10 }}>Day Notes</div><textarea rows={3} placeholder="How did today go? Anything worth noting..." value={form.dayNotes} onChange={(e) => f("dayNotes", e.target.value)} /></div>
+          </Card>
+          <Btn full disabled={!canSave} onClick={() => props.onSave(Object.assign({}, form, { timestamp: new Date().toISOString() }))}>SAVE EVENING CHECK-IN ✓</Btn>
+          {!canSave && <p style={{ fontSize: 12, color: MUT, textAlign: "center", marginTop: 10 }}>Complete activity, cravings, and mood to save</p>}
+        </div>
+      );
+    };
+
+    const ExercisePlanScreen = (props) => {
+      const startDay = daysSinceStart(props.profile.startDate);
+      const currentDayOfWeek = new Date().getDay();
+      const dayNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+      // Show 8 weeks forward starting from this week's Sunday
+      const weeks = [];
+      for (let w = 0; w < 8; w++) {
+        const weekDays = [];
+        for (let d = 0; d < 7; d++) {
+          // day offset from today = (d - currentDayOfWeek) + (w * 7)
+          const dayOffsetFromToday = (d - currentDayOfWeek) + (w * 7);
+          const absoluteDay = startDay + dayOffsetFromToday;
+          if (absoluteDay < 0) {
+            weekDays.push({ dayName: dayNames[d], workout: null, isPast: true, isToday: false });
+            continue;
+          }
+          // Temporarily override getDay() logic by passing in dayOfWeek
+          const weekNum = Math.floor(absoluteDay / 7) + 1;
+          let workout;
+          const scheduleForWeek = (wn, dow) => {
+            if (wn <= 2) return [
+              { icon:"🚶", title:"Recovery Walk", duration:30, intensity:"Low" },
+              { icon:"🚶", title:"Brisk Walk", duration:35, intensity:"Moderate" },
+              { icon:"🚴", title:"Peloton Beginner", duration:25, intensity:"Moderate" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:25, intensity:"Low" },
+              { icon:"💪", title:"Bodyweight Foundation", duration:25, intensity:"Moderate" },
+              { icon:"🏃", title:"Walk-Run Intervals", duration:30, intensity:"Mod-High" },
+              { icon:"🚴", title:"Peloton Endurance", duration:35, intensity:"Moderate" }
+            ][dow];
+            if (wn <= 5) return [
+              { icon:"🚶", title:"Recovery Walk", duration:30, intensity:"Low" },
+              { icon:"🏃", title:"Walk-Run Intervals", duration:30, intensity:"Mod-High" },
+              { icon:"🚴", title:"Peloton Climb", duration:30, intensity:"Moderate" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:25, intensity:"Low" },
+              { icon:"💪", title:"Bodyweight Progression", duration:30, intensity:"Moderate" },
+              { icon:"🏃", title:"Run Intervals", duration:32, intensity:"Mod-High" },
+              { icon:"🚴", title:"Long Peloton Ride", duration:45, intensity:"Moderate" }
+            ][dow];
+            if (wn === 6) return [
+              { icon:"🚶", title:"Recovery Walk", duration:35, intensity:"Low" },
+              { icon:"🏃", title:"Run Intervals", duration:32, intensity:"High" },
+              { icon:"🚴", title:"Peloton Power", duration:35, intensity:"Mod-High" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:25, intensity:"Low" },
+              { icon:"💪", title:"Strength Circuit", duration:30, intensity:"Mod-High" },
+              { icon:"🏃", title:"Run Intervals", duration:34, intensity:"High" },
+              { icon:"🚴", title:"Long Ride", duration:45, intensity:"Moderate" }
+            ][dow];
+            if (wn <= 9) return [
+              { icon:"🚶", title:"Recovery Walk", duration:30, intensity:"Low" },
+              { icon:"🏃", title:"Run Intervals", duration:30, intensity:"High" },
+              { icon:"🚴", title:"Peloton HIIT", duration:30, intensity:"High" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:25, intensity:"Low" },
+              { icon:"💪", title:"Strength Circuit", duration:30, intensity:"Mod-High" },
+              { icon:"🏃", title:"Run Intervals", duration:32, intensity:"High" },
+              { icon:"🚴", title:"Long Endurance", duration:45, intensity:"Moderate" }
+            ][dow];
+            if (wn <= 12) return [
+              { icon:"🚶", title:"Recovery Walk", duration:35, intensity:"Low" },
+              { icon:"🏃", title:"Continuous Run", duration:30, intensity:"High" },
+              { icon:"🚴", title:"Peloton Power", duration:30, intensity:"High" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:25, intensity:"Low" },
+              { icon:"💪", title:"Full-Body Strength", duration:30, intensity:"High" },
+              { icon:"🏃", title:"Continuous Run", duration:32, intensity:"High" },
+              { icon:"🚴", title:"Long Ride", duration:45, intensity:"Mod-High" }
+            ][dow];
+            return [
+              { icon:"🚶", title:"Recovery Walk", duration:40, intensity:"Low" },
+              { icon:"🏃", title:"5K Run", duration:35, intensity:"High" },
+              { icon:"🚴", title:"Power Zone Ride", duration:45, intensity:"High" },
+              { icon:"🚶", title:"Lunch Walk (Office)", duration:30, intensity:"Low" },
+              { icon:"💪", title:"Advanced Circuit", duration:35, intensity:"High" },
+              { icon:"🏃", title:"Long Run", duration:45, intensity:"High" },
+              { icon:"🚴", title:"Long Endurance", duration:60, intensity:"Moderate" }
+            ][dow];
+          };
+          workout = scheduleForWeek(weekNum, d);
+          weekDays.push({ dayName: dayNames[d], workout: workout, isPast: dayOffsetFromToday < 0, isToday: dayOffsetFromToday === 0, weekNum: weekNum });
+        }
+        weeks.push(weekDays);
+      }
+
+      const phaseNames = {
+        1: "Phase 1 · Build Base", 2: "Phase 1 · Build Base",
+        3: "Phase 2 · Intervals", 4: "Phase 2 · Intervals", 5: "Phase 2 · Intervals",
+        6: "Phase 2b · Bridge",
+        7: "Phase 3 · Running", 8: "Phase 3 · Running", 9: "Phase 3 · Running",
+        10: "Phase 4 · Continuous", 11: "Phase 4 · Continuous", 12: "Phase 4 · Continuous"
+      };
+
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <H size={40} color="#fff" mb={4}>8-WEEK<br/><span style={{ color: A }}>EXERCISE PLAN</span></H>
+          <p style={{ color: MUT, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>Your roadmap from walking → running. Science-backed progression built from Couch-to-5K + NHS research.</p>
+          {weeks.map((weekDays, wi) => {
+            const weekNum = weekDays[0].weekNum || (Math.floor(startDay / 7) + 1 + wi);
+            const phase = phaseNames[weekNum] || "Phase 5 · Maintenance";
+            return (
+              <Card key={wi} style={{ marginBottom: 14, padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid " + BDR }}>
+                  <H size={22} color={A}>WEEK {weekNum}</H>
+                  <span style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5 }}>{phase}</span>
+                </div>
+                {weekDays.map((day, di) => {
+                  if (!day.workout) return null;
+                  return (
+                    <div key={di} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: di < 6 ? "1px solid " + BDR : "none", opacity: day.isPast ? 0.35 : 1 }}>
+                      <div style={{ width: 38, fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: day.isToday ? A : MUT, letterSpacing: 1 }}>{day.dayName}</div>
+                      <div style={{ fontSize: 22, width: 32, textAlign: "center" }}>{day.workout.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: day.isToday ? A : "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{day.workout.title}</div>
+                        <div style={{ fontSize: 10, color: MUT }}>{day.workout.duration} min · {day.workout.intensity}</div>
+                      </div>
+                      {day.isToday && <div style={{ background: A, color: "#000", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, letterSpacing: 0.5 }}>TODAY</div>}
+                    </div>
+                  );
+                })}
+              </Card>
+            );
+          })}
+          <div style={{ background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.2)", borderRadius: 12, padding: 14, marginTop: 6, fontSize: 12, color: SOFT, lineHeight: 1.6 }}>
+            💡 <strong style={{ color: A }}>Adaptation tip:</strong> If any week feels too hard, repeat it. Better to repeat a week than skip ahead and get injured. Your home screen always shows the right workout for where you actually are.
+          </div>
+        </div>
+      );
+    };
+
+    const FastingPlanScreen = (props) => {
+      const startDay = daysSinceStart(props.profile.startDate);
+      const currentDayOfWeek = new Date().getDay();
+      const dayNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+      const weeks = [];
+      for (let w = 0; w < 8; w++) {
+        const weekDays = [];
+        let weekNum = 1;
+        for (let d = 0; d < 7; d++) {
+          const dayOffsetFromToday = (d - currentDayOfWeek) + (w * 7);
+          const absoluteDay = startDay + dayOffsetFromToday;
+          if (absoluteDay < 0) {
+            weekDays.push({ dayName: dayNames[d], plan: null, isPast: true, isToday: false });
+            continue;
+          }
+          weekNum = Math.floor(absoluteDay / 7) + 1;
+          const isExtendedWeek = weekNum >= 4 && (weekNum - 4) % 4 === 0;
+          const is72 = weekNum >= 8 && (weekNum - 8) % 8 === 0;
+          let plan;
+          if (isExtendedWeek && d === 5) {
+            plan = { icon: "🔋", title: is72 ? "72h Fast Begins" : "48h Fast Begins", window: "Last meal 6 PM", accent: true };
+          } else if (isExtendedWeek && d === 6) {
+            plan = { icon: "💧", title: is72 ? "Day 1 of 72h" : "Day 1 of 48h", window: "Water only", accent: true };
+          } else if (isExtendedWeek && d === 0) {
+            plan = { icon: is72 ? "💧" : "🥣", title: is72 ? "Day 2 of 72h" : "Break 48h Fast", window: is72 ? "Water only" : "Bone broth → meal", accent: true };
+          } else if (is72 && d === 1) {
+            plan = { icon: "🥣", title: "Break 72h Fast", window: "Bone broth at noon", accent: true };
+          } else if (weekNum === 1) {
+            plan = { icon: "🌱", title: "14:10 Fast", window: "10 AM – 8 PM", accent: false };
+          } else if (weekNum === 2) {
+            plan = { icon: "⚡", title: "15:9 Fast", window: "10:30 AM – 7:30 PM", accent: false };
+          } else {
+            plan = { icon: "🎯", title: "16:8 Fast", window: "11 AM – 7 PM", accent: false };
+          }
+          weekDays.push({ dayName: dayNames[d], plan: plan, isPast: dayOffsetFromToday < 0, isToday: dayOffsetFromToday === 0, weekNum: weekNum });
+        }
+        weeks.push(weekDays);
+      }
+
+      const phaseNames = {
+        1: "Ramp-Up", 2: "Ramp-Up",
+        3: "16:8 Default", 4: "+ First 48h Fast",
+        5: "16:8 Default", 6: "16:8 Default", 7: "16:8 Default",
+        8: "+ First 72h Fast", 9: "16:8 Default", 10: "16:8 Default",
+        11: "16:8 Default", 12: "+ 48h Fast"
+      };
+
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <H size={40} color="#fff" mb={4}>8-WEEK<br/><span style={{ color: A }}>FASTING PLAN</span></H>
+          <p style={{ color: MUT, fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>Accelerated ramp into 16:8, with periodic extended fasts per Gary Brecka's protocol for autophagy and metabolic reset.</p>
+          <Card style={{ marginBottom: 16, background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.2)", padding: 14 }}>
+            <div style={{ fontSize: 11, color: A, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8, fontWeight: 600 }}>Protocol Legend</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, color: SOFT }}>
+              <div>🌱 14:10 · 🚀 15:9 · 🎯 16:8 (default protocol)</div>
+              <div>🔋 48h / 72h fast start · 💧 water-only day · 🥣 break fast gently</div>
+            </div>
+          </Card>
+          {weeks.map((weekDays, wi) => {
+            const weekNum = weekDays.find(d => d.weekNum)?.weekNum || 1;
+            const phase = phaseNames[weekNum] || "Maintenance";
+            return (
+              <Card key={wi} style={{ marginBottom: 14, padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid " + BDR }}>
+                  <H size={22} color={A}>WEEK {weekNum}</H>
+                  <span style={{ fontSize: 10, color: MUT, textTransform: "uppercase", letterSpacing: 1.5 }}>{phase}</span>
+                </div>
+                {weekDays.map((day, di) => {
+                  if (!day.plan) return null;
+                  return (
+                    <div key={di} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: di < 6 ? "1px solid " + BDR : "none", opacity: day.isPast ? 0.35 : 1 }}>
+                      <div style={{ width: 38, fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: day.isToday ? A : MUT, letterSpacing: 1 }}>{day.dayName}</div>
+                      <div style={{ fontSize: 22, width: 32, textAlign: "center" }}>{day.plan.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: day.plan.accent ? "#FFD700" : (day.isToday ? A : "#fff"), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{day.plan.title}</div>
+                        <div style={{ fontSize: 10, color: MUT }}>{day.plan.window}</div>
+                      </div>
+                      {day.isToday && <div style={{ background: A, color: "#000", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 4, letterSpacing: 0.5 }}>TODAY</div>}
+                    </div>
+                  );
+                })}
+              </Card>
+            );
+          })}
+          <div style={{ background: "rgba(255,215,0,0.05)", border: "1px solid rgba(255,215,0,0.2)", borderRadius: 12, padding: 14, marginTop: 6, fontSize: 12, color: SOFT, lineHeight: 1.6 }}>
+            ⚠️ <strong style={{ color: "#FFD700" }}>Extended fast reminder:</strong> Get doctor clearance before first 48h+ fast. Keep sodium, potassium, and magnesium up. Break fast with bone broth, then a small meal. Do not feast.
+          </div>
+        </div>
+      );
+    };
+
+    const HistoryScreen = (props) => {
+      const { checkins, weightLog, profile } = props;
+      const sortedDates = Object.keys(checkins).sort((a, b) => b.localeCompare(a)).slice(0, 60);
+      const insights = buildInsights(checkins);
+      const chartData = weightLog.slice(-30);
+      return (
+        <div style={{ padding: "20px 16px" }}>
+          <H size={40} color="#fff" mb={4}>HISTORY &<br/><span style={{ color: A }}>INSIGHTS</span></H>
+          <p style={{ color: MUT, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>Your patterns reveal your progress. Data beats guesswork.</p>
+          {weightLog.length > 1 ? (
+            <Card style={{ marginBottom: 16 }}>
+              <H size={16} color={A} mb={16}>WEIGHT TREND</H>
+              <WeightChart data={chartData} />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12 }}>
+                <span style={{ color: MUT }}>Start: <strong style={{ color: "#fff" }}>{profile.startWeight}</strong></span>
+                {weightLog.length > 0 && <span style={{ color: A, fontWeight: 600 }}>Latest: {weightLog[weightLog.length - 1].weight} lbs</span>}
+                <span style={{ color: MUT }}>Goal: <strong style={{ color: "#fff" }}>{profile.goalWeight}</strong></span>
+              </div>
+            </Card>
+          ) : (
+            <Card style={{ marginBottom: 16, textAlign: "center", padding: 32 }}><div style={{ fontSize: 36, marginBottom: 10 }}>⚖️</div><div style={{ color: SOFT, fontSize: 14 }}>Log your weight a few times to see your trend chart.</div></Card>
+          )}
+          {insights.length > 0 && (
+            <Card style={{ marginBottom: 16 }}>
+              <H size={16} color={A} mb={4}>✨ YOUR PERSONAL INSIGHTS</H>
+              <p style={{ fontSize: 12, color: MUT, marginBottom: 14, lineHeight: 1.5 }}>Patterns discovered from your check-in data</p>
+              {insights.map((ins, i) => (
+                <div key={i} style={{ display: "flex", gap: 14, padding: "12px 0", borderBottom: i < insights.length - 1 ? "1px solid " + BDR : "none" }}>
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{ins.icon}</span>
+                  <p style={{ fontSize: 13, color: SOFT, lineHeight: 1.65 }}>{ins.text}</p>
+                </div>
+              ))}
+            </Card>
+          )}
+          {insights.length === 0 && Object.keys(checkins).length < 3 && (
+            <div style={{ background: "rgba(0,232,122,0.05)", border: "1px solid rgba(0,232,122,0.15)", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🧬</div>
+              <div style={{ fontSize: 13, color: A, fontWeight: 600 }}>Insights unlock after 3+ days</div>
+              <div style={{ fontSize: 12, color: MUT, marginTop: 6, lineHeight: 1.5 }}>Keep completing check-ins and we'll surface patterns in your sleep, stress, and weight data.</div>
+            </div>
+          )}
+          <H size={24} color="#fff" mb={14}>CHECK-IN LOG</H>
+          {sortedDates.length === 0 ? (
+            <Card style={{ textAlign: "center", padding: 32 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📋</div><div style={{ color: SOFT, fontSize: 14 }}>Complete your first check-in to start building your log.</div></Card>
+          ) : sortedDates.map((date) => {
+            const c = checkins[date];
+            return (
+              <Card key={date} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>{fmtDate(date)}</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {c.morning && <span style={{ fontSize: 10, background: "rgba(0,232,122,0.1)", color: A, border: "1px solid rgba(0,232,122,0.25)", borderRadius: 20, padding: "2px 9px" }}>🌅 AM</span>}
+                    {c.evening && <span style={{ fontSize: 10, background: "rgba(0,232,122,0.1)", color: A, border: "1px solid rgba(0,232,122,0.25)", borderRadius: 20, padding: "2px 9px" }}>🌙 PM</span>}
+                  </div>
+                </div>
+                {c.morning && <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: c.evening ? 8 : 0 }}>
+                  <span style={{ fontSize: 12, color: SOFT }}>💤 Sleep: <strong style={{ color: "#fff" }}>{c.morning.sleepScore}/10</strong></span>
+                  <span style={{ fontSize: 12, color: SOFT }}>🌙 Woke: <strong style={{ color: "#fff" }}>{c.morning.timesWoken}x</strong></span>
+                  <span style={{ fontSize: 12, color: SOFT }}>⚡ Energy: <strong style={{ color: "#fff" }}>{energyLabels[c.morning.energyLevel] || "–"}</strong></span>
+                </div>}
+                {c.evening && <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: SOFT }}>🧠 Stress: <strong style={{ color: "#fff" }}>{c.evening.stressLevel}/10</strong></span>
+                  <span style={{ fontSize: 12, color: SOFT }}>😴 Tired: <strong style={{ color: "#fff" }}>{c.evening.tiredness}/10</strong></span>
+                  <span style={{ fontSize: 12, color: SOFT }}>🏃 <strong style={{ color: "#fff" }}>{c.evening.activityLevel}</strong></span>
+                  {c.evening.mood && <span style={{ fontSize: 12, color: SOFT }}>Mood: <strong style={{ color: "#fff" }}>{moodLabels[c.evening.mood]}</strong></span>}
+                </div>}
+                {c.morning && c.morning.sleepNotes && <p style={{ fontSize: 11, color: MUT, marginTop: 8, fontStyle: "italic" }}>"{c.morning.sleepNotes}"</p>}
+                {c.evening && c.evening.dayNotes && <p style={{ fontSize: 11, color: MUT, marginTop: 8, fontStyle: "italic" }}>"{c.evening.dayNotes}"</p>}
+              </Card>
+            );
+          })}
+        </div>
+      );
+    };
+
+    function App() {
+      const [profile, setProfile] = useState(() => db.get("profile"));
+      const [checkins, setCheckins] = useState(() => db.get("checkins") || {});
+      const [weightLog, setWeightLog] = useState(() => db.get("weightLog") || []);
+      const [tab, setTab] = useState("home");
+
+      const saveProfile = (p) => {
+        setProfile(p); db.set("profile", p);
+        const initLog = [{ date: p.startDate, weight: p.startWeight }];
+        setWeightLog(initLog); db.set("weightLog", initLog);
+      };
+
+      const saveCheckin = (date, type, data) => {
+        const newForDate = Object.assign({}, checkins[date] || {});
+        newForDate[type] = data;
+        const updated = Object.assign({}, checkins);
+        updated[date] = newForDate;
+        setCheckins(updated); db.set("checkins", updated);
+        if (type === "morning" && data.morningWeight) {
+          const filtered = weightLog.filter((w) => w.date !== date);
+          filtered.push({ date: date, weight: +data.morningWeight });
+          filtered.sort((a, b) => a.date.localeCompare(b.date));
+          setWeightLog(filtered); db.set("weightLog", filtered);
+          const up = Object.assign({}, profile, { currentWeight: +data.morningWeight });
+          setProfile(up); db.set("profile", up);
+        }
+      };
+
+      const addWeight = (weight) => {
+        const t = localToday();
+        const filtered = weightLog.filter((w) => w.date !== t);
+        filtered.push({ date: t, weight: parseFloat(weight) });
+        filtered.sort((a, b) => a.date.localeCompare(b.date));
+        setWeightLog(filtered); db.set("weightLog", filtered);
+        const up = Object.assign({}, profile, { currentWeight: parseFloat(weight) });
+        setProfile(up); db.set("profile", up);
+      };
+
+      if (!profile) return <ProfileSetup onSave={saveProfile} />;
+
+      const t = localToday();
+      const todayCheckin = checkins[t] || {};
+      const morningDone = !!todayCheckin.morning;
+      const eveningDone = !!todayCheckin.evening;
+
+      return (
+        <AppShell tab={tab} setTab={setTab} morningDone={morningDone} eveningDone={eveningDone}>
+          {tab === "home" && <HomeScreen profile={profile} checkins={checkins} weightLog={weightLog} morningDone={morningDone} eveningDone={eveningDone} setTab={setTab} addWeight={addWeight} />}
+          {tab === "morning" && <MorningCheckin existing={todayCheckin.morning} onSave={(d) => { saveCheckin(t, "morning", d); setTab("home"); }} onBack={() => setTab("home")} />}
+          {tab === "evening" && <EveningCheckin existing={todayCheckin.evening} onSave={(d) => { saveCheckin(t, "evening", d); setTab("home"); }} onBack={() => setTab("home")} />}
+          {tab === "exercise" && <ExercisePlanScreen profile={profile} />}
+          {tab === "fasting" && <FastingPlanScreen profile={profile} />}
+          {tab === "history" && <HistoryScreen checkins={checkins} weightLog={weightLog} profile={profile} />}
+        </AppShell>
+      );
+    }
+
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    } catch (e) {
+      document.getElementById('root').innerHTML = '<div class="err"><h2>App Error</h2><pre>' + (e.message || e) + '</pre></div>';
+    }
+  </script>
+</body>
+</html>
